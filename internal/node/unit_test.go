@@ -276,3 +276,22 @@ func TestDeviceLimitKickOldest(t *testing.T) {
 		t.Fatalf("IPs after the return: %v", ips)
 	}
 }
+
+// The oldest IP is the one admitted first, whatever ids its connections were given: an id
+// is allocated before the tracker lock, so a connection can be admitted after a later one.
+func TestDeviceLimitKickOldestAdmissionOrder(t *testing.T) {
+	tr := NewTracker()
+	p := &userPolicy{deviceLimit: 2, kickOldest: true}
+	a, b, c := &fakeCloser{}, &fakeCloser{}, &fakeCloser{}
+	ra := &connRec{id: tr.nextID.Add(1), user: "u", srcIP: "1.1.1.1", closer: a}
+	rb := &connRec{id: tr.nextID.Add(1), user: "u", srcIP: "2.2.2.2", closer: b}
+	if !tr.admit(rb, p) || !tr.admit(ra, p) { // the later id gets its slot first
+		t.Fatal("within the limit")
+	}
+	if !tr.admit(&connRec{id: tr.nextID.Add(1), user: "u", srcIP: "3.3.3.3", closer: c}, p) {
+		t.Fatal("new IP refused")
+	}
+	if !b.closed || a.closed || c.closed {
+		t.Fatalf("closed: first admitted=%v lower id=%v new=%v", b.closed, a.closed, c.closed)
+	}
+}

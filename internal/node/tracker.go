@@ -41,6 +41,7 @@ type Tracker struct {
 	mu     sync.Mutex
 	active map[uint64]*connRec
 	ips    map[string]map[string]*ipUse // user -> source IP -> its connections (device limits)
+	ipSeq  uint64                       // orders IPs by when they took a device slot
 	closed []*connRec
 	nextID atomic.Uint64
 
@@ -61,7 +62,7 @@ type Tracker struct {
 // ipUse is one source IP a user is connected from.
 type ipUse struct {
 	conns int
-	since uint64 // id of the connection that brought the IP online: lower = connected longer
+	since uint64 // Tracker.ipSeq when the IP took its slot: lower = connected longer
 }
 
 type probeSight struct {
@@ -210,7 +211,10 @@ func (t *Tracker) admit(r *connRec, p *userPolicy) bool {
 	}
 	u := ips[r.srcIP]
 	if u == nil {
-		u = &ipUse{since: r.id}
+		// numbered here, under the lock: connection ids are handed out before it, so
+		// two connections racing in could be admitted in the opposite order
+		t.ipSeq++
+		u = &ipUse{since: t.ipSeq}
 		ips[r.srcIP] = u
 	}
 	u.conns++
