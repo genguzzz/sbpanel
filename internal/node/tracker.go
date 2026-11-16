@@ -28,6 +28,7 @@ type connRec struct {
 	start                      time.Time
 	up, down                   atomic.Int64
 	closer                     interface{ Close() error }
+	evicted                    bool // its IP lost its device slot (guarded by Tracker.mu)
 
 	// aggregator-owned
 	lastUp, lastDown int64
@@ -39,7 +40,7 @@ type connRec struct {
 type Tracker struct {
 	mu     sync.Mutex
 	active map[uint64]*connRec
-	ips    map[string]map[string]int // user -> source IP -> active connections (device limits)
+	ips    map[string]map[string]*ipUse // user -> source IP -> its connections (device limits)
 	closed []*connRec
 	nextID atomic.Uint64
 
@@ -48,13 +49,19 @@ type Tracker struct {
 	polMu    sync.RWMutex
 	policies map[string]*userPolicy
 
-	rejected atomic.Int64 // connections refused by the device limit
+	rejected atomic.Int64 // connections refused by a traffic or device limit
 
 	// probes records the panel probe's routed connections per inbound: they are
 	// not counted, but their presence proves the inbound authenticated the probe
 	// (so a failed probe is the outbound's / upstream's fault, not the inbound's).
 	probeMu sync.Mutex
 	probes  map[string]probeSight
+}
+
+// ipUse is one source IP a user is connected from.
+type ipUse struct {
+	conns int
+	since uint64 // id of the connection that brought the IP online: lower = connected longer
 }
 
 type probeSight struct {
@@ -85,6 +92,7 @@ func (t *Tracker) sawProbe(m adapter.InboundContext, out adapter.Outbound) {
 // connections on this node so the cap applies to the user, not per connection.
 type userPolicy struct {
 	deviceLimit int
+	kickOldest  bool            // at the device limit a new IP replaces the oldest one
 	blocked     map[string]bool // inbound tags closed by a traffic limit
 	up, down    *rate.Limiter
 	upBps       int64
@@ -92,7 +100,7 @@ type userPolicy struct {
 }
 
 func NewTracker() *Tracker {
-	return &Tracker{active: map[uint64]*connRec{}, ips: map[string]map[string]int{}, policies: map[string]*userPolicy{}}
+	return &Tracker{active: map[uint64]*connRec{}, ips: map[string]map[string]*ipUse{}, policies: map[string]*userPolicy{}}
 }
 
 func newLimiter(bps int64) *rate.Limiter {
@@ -113,7 +121,7 @@ func (t *Tracker) SetPolicies(ps []*pb.UserPolicy) {
 	next := make(map[string]*userPolicy, len(ps))
 	for _, p := range ps {
 		old := t.policies[p.User]
-		np := &userPolicy{deviceLimit: int(p.DeviceLimit), upBps: p.SpeedUp, downBps: p.SpeedDown}
+		np := &userPolicy{deviceLimit: int(p.DeviceLimit), kickOldest: p.KickOldest, upBps: p.SpeedUp, downBps: p.SpeedDown}
 		if len(p.BlockedInbounds) > 0 {
 			np.blocked = make(map[string]bool, len(p.BlockedInbounds))
 			for _, tag := range p.BlockedInbounds {
@@ -137,28 +145,13 @@ func (t *Tracker) SetPolicies(ps []*pb.UserPolicy) {
 	t.Kick(func(r *connRec) bool { p := next[r.user]; return p != nil && p.blocked[r.inbound] })
 }
 
-// refuse reports whether a new connection must be dropped: the user's traffic limit has
-// closed this inbound, or the connection would exceed the user's device limit.
-func (t *Tracker) refuse(r *connRec, p *userPolicy) bool {
-	return p != nil && (p.blocked[r.inbound] || t.overDeviceLimit(r.user, r.srcIP, p.deviceLimit))
-}
+// blockedOn reports whether the user's traffic limit has closed this inbound.
+func (p *userPolicy) blockedOn(inbound string) bool { return p != nil && p.blocked[inbound] }
 
 func (t *Tracker) policy(user string) *userPolicy {
 	t.polMu.RLock()
 	defer t.polMu.RUnlock()
 	return t.policies[user]
-}
-
-// overDeviceLimit reports whether a new connection from ip would exceed the limit.
-func (t *Tracker) overDeviceLimit(user, ip string, limit int) bool {
-	if limit <= 0 || user == "" {
-		return false
-	}
-	t.mu.Lock()
-	ips := t.ips[user] // kept by join / leave: O(1) instead of scanning every connection
-	over := ips[ip] == 0 && len(ips) >= limit
-	t.mu.Unlock()
-	return over
 }
 
 var _ adapter.ConnectionTracker = (*Tracker)(nil)
@@ -195,14 +188,65 @@ func (t *Tracker) newRec(m adapter.InboundContext, rule adapter.Rule, out adapte
 	return r
 }
 
-func (t *Tracker) join(r *connRec) {
+// admit registers a new connection, unless it comes from a new IP while the user's device
+// limit is full. With kickOldest the new IP gets in and the IPs connected the longest lose
+// their connections instead. The check and the registration share one critical section, so
+// two new IPs arriving together cannot both take the last slot.
+func (t *Tracker) admit(r *connRec, p *userPolicy) bool {
 	t.mu.Lock()
-	t.active[r.id] = r
-	if t.ips[r.user] == nil {
-		t.ips[r.user] = map[string]int{}
+	ips := t.ips[r.user]
+	var drop []*connRec
+	if p != nil && p.deviceLimit > 0 && r.user != "" && ips[r.srcIP] == nil && len(ips) >= p.deviceLimit {
+		if !p.kickOldest {
+			t.mu.Unlock()
+			return false
+		}
+		drop = t.evictLocked(r.user, len(ips)-p.deviceLimit+1)
 	}
-	t.ips[r.user][r.srcIP]++
+	t.active[r.id] = r
+	if ips == nil {
+		ips = map[string]*ipUse{}
+		t.ips[r.user] = ips
+	}
+	u := ips[r.srcIP]
+	if u == nil {
+		u = &ipUse{since: r.id}
+		ips[r.srcIP] = u
+	}
+	u.conns++
 	t.mu.Unlock()
+	for _, d := range drop {
+		if d.closer != nil {
+			d.closer.Close()
+		}
+	}
+	return true
+}
+
+// evictLocked frees n device slots of user: the IPs connected the longest leave the count
+// at once, and their connections are returned for the caller to close.
+func (t *Tracker) evictLocked(user string, n int) []*connRec {
+	ips := t.ips[user]
+	gone := map[string]bool{}
+	for ; n > 0 && len(ips) > 0; n-- {
+		var ip string
+		var old *ipUse
+		for k, u := range ips {
+			if old == nil || u.since < old.since {
+				ip, old = k, u
+			}
+		}
+		delete(ips, ip)
+		gone[ip] = true
+	}
+	var drop []*connRec
+	for _, r := range t.active {
+		if r.user == user && gone[r.srcIP] {
+			r.evicted = true // leave must not count it against the IP's next visit
+			drop = append(drop, r)
+		}
+	}
+	return drop
 }
 
 func (t *Tracker) leave(r *connRec) {
@@ -210,9 +254,11 @@ func (t *Tracker) leave(r *connRec) {
 	if _, ok := t.active[r.id]; ok {
 		delete(t.active, r.id)
 		t.closed = append(t.closed, r)
-		if m := t.ips[r.user]; m != nil {
-			if m[r.srcIP]--; m[r.srcIP] <= 0 {
-				delete(m, r.srcIP)
+		if m := t.ips[r.user]; m != nil && !r.evicted {
+			if u := m[r.srcIP]; u != nil {
+				if u.conns--; u.conns <= 0 {
+					delete(m, r.srcIP)
+				}
 			}
 			if len(m) == 0 {
 				delete(t.ips, r.user)
@@ -229,7 +275,7 @@ func (t *Tracker) RoutedConnection(ctx context.Context, conn net.Conn, m adapter
 	}
 	r := t.newRec(m, rule, out)
 	p := t.policy(r.user)
-	if t.refuse(r, p) {
+	if p.blockedOn(r.inbound) {
 		t.rejected.Add(1)
 		conn.Close()
 		return conn
@@ -244,7 +290,11 @@ func (t *Tracker) RoutedConnection(ctx context.Context, conn net.Conn, m adapter
 		t:            t, r: r, limited: inner != conn,
 	}
 	r.closer = c
-	t.join(r)
+	if !t.admit(r, p) {
+		t.rejected.Add(1)
+		conn.Close()
+		return conn
+	}
 	return c
 }
 
@@ -255,7 +305,7 @@ func (t *Tracker) RoutedPacketConnection(ctx context.Context, conn N.PacketConn,
 	}
 	r := t.newRec(m, rule, out)
 	p := t.policy(r.user)
-	if t.refuse(r, p) {
+	if p.blockedOn(r.inbound) {
 		t.rejected.Add(1)
 		conn.Close()
 		return conn
@@ -269,7 +319,11 @@ func (t *Tracker) RoutedPacketConnection(ctx context.Context, conn N.PacketConn,
 		t:          t, r: r, limited: inner != conn,
 	}
 	r.closer = c
-	t.join(r)
+	if !t.admit(r, p) {
+		t.rejected.Add(1)
+		conn.Close()
+		return conn
+	}
 	return c
 }
 

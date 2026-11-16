@@ -16,7 +16,7 @@ import (
 
 func rec(t *Tracker, user, host, src string) *connRec {
 	r := &connRec{id: t.nextID.Add(1), user: user, inbound: "in", outbound: "direct", host: host, srcIP: src, port: 443, network: "tcp", rule: "final", start: time.Now()}
-	t.join(r)
+	t.admit(r, nil)
 	return r
 }
 
@@ -116,16 +116,22 @@ func TestSpoolDurableSeq(t *testing.T) {
 func TestPolicyDeviceLimit(t *testing.T) {
 	tr := NewTracker()
 	tr.SetPolicies([]*pb.UserPolicy{{User: "1", DeviceLimit: 2}})
-	rec(tr, "1", "a", "10.0.0.1")
-	rec(tr, "1", "a", "10.0.0.2")
-	p := tr.policy("1")
-	if tr.overDeviceLimit("1", "10.0.0.1", p.deviceLimit) {
+	open := func(user, ip string) bool {
+		return tr.admit(&connRec{id: tr.nextID.Add(1), user: user, srcIP: ip}, tr.policy(user))
+	}
+	if !open("1", "10.0.0.1") || !open("1", "10.0.0.2") {
+		t.Fatal("devices within the limit rejected")
+	}
+	if !open("1", "10.0.0.1") {
 		t.Fatal("existing device rejected")
 	}
-	if !tr.overDeviceLimit("1", "10.0.0.3", p.deviceLimit) {
+	if open("1", "10.0.0.3") {
 		t.Fatal("third device allowed")
 	}
-	if tr.overDeviceLimit("2", "10.0.0.3", 0) {
+	if len(tr.active) != 3 || len(tr.ips["1"]) != 2 {
+		t.Fatalf("a refused connection was registered: %d conns, %d IPs", len(tr.active), len(tr.ips["1"]))
+	}
+	if !open("2", "10.0.0.3") {
 		t.Fatal("unlimited user rejected")
 	}
 	// limiter objects survive a policy refresh with the same rate
@@ -165,7 +171,7 @@ func TestPolicyBlockedInbounds(t *testing.T) {
 		r := &connRec{id: tr.nextID.Add(1), user: user, inbound: inbound, start: time.Now()}
 		c := &fakeCloser{}
 		r.closer = c
-		tr.join(r)
+		tr.admit(r, nil)
 		return r
 	}
 	a := open("1", "home")
@@ -176,11 +182,11 @@ func TestPolicyBlockedInbounds(t *testing.T) {
 		t.Fatalf("kick: home/1=%v main/1=%v home/2=%v", a.closer.(*fakeCloser).closed, b.closer.(*fakeCloser).closed, c.closer.(*fakeCloser).closed)
 	}
 	p := tr.policy("1")
-	if !tr.refuse(&connRec{user: "1", inbound: "home"}, p) || tr.refuse(&connRec{user: "1", inbound: "main"}, p) {
+	if !p.blockedOn("home") || p.blockedOn("main") {
 		t.Fatal("refuse")
 	}
 	tr.SetPolicies(nil)
-	if tr.refuse(&connRec{user: "1", inbound: "home"}, tr.policy("1")) {
+	if tr.policy("1").blockedOn("home") {
 		t.Fatal("still refused after the limit reset")
 	}
 }
@@ -212,19 +218,61 @@ func TestReadPEMFileBounds(t *testing.T) {
 // Device limits use per-user IP refcounts kept by join / leave.
 func TestDeviceLimitRefcount(t *testing.T) {
 	tr := NewTracker()
+	one := &userPolicy{deviceLimit: 1}
 	r1 := &connRec{id: 1, user: "u", srcIP: "1.1.1.1"}
 	r2 := &connRec{id: 2, user: "u", srcIP: "1.1.1.1"}
-	tr.join(r1)
-	tr.join(r2)
-	if tr.overDeviceLimit("u", "1.1.1.1", 1) || !tr.overDeviceLimit("u", "2.2.2.2", 1) {
+	if !tr.admit(r1, one) || !tr.admit(r2, one) {
 		t.Fatal("limit 1 with one IP")
 	}
+	if tr.admit(&connRec{id: 3, user: "u", srcIP: "2.2.2.2"}, one) {
+		t.Fatal("second IP admitted")
+	}
 	tr.leave(r1)
-	if !tr.overDeviceLimit("u", "2.2.2.2", 1) {
+	if tr.admit(&connRec{id: 4, user: "u", srcIP: "2.2.2.2"}, one) {
 		t.Fatal("IP freed while a connection remains")
 	}
 	tr.leave(r2)
-	if tr.overDeviceLimit("u", "2.2.2.2", 1) || len(tr.ips) != 0 {
+	if len(tr.ips) != 0 {
 		t.Fatalf("IP not freed: %v", tr.ips)
+	}
+	if !tr.admit(&connRec{id: 5, user: "u", srcIP: "2.2.2.2"}, one) {
+		t.Fatal("second IP rejected after the first left")
+	}
+}
+
+// With kick_oldest a new IP at the limit gets in and the IP connected the longest loses
+// all of its connections; "oldest" is by arrival of the IP, not of its latest connection.
+func TestDeviceLimitKickOldest(t *testing.T) {
+	tr := NewTracker()
+	p := &userPolicy{deviceLimit: 2, kickOldest: true}
+	open := func(user, ip string) (*connRec, *fakeCloser) {
+		c := &fakeCloser{}
+		r := &connRec{id: tr.nextID.Add(1), user: user, srcIP: ip, closer: c}
+		if !tr.admit(r, p) {
+			t.Fatalf("%s from %s refused", user, ip)
+		}
+		return r, c
+	}
+	_, a1 := open("u", "1.1.1.1")
+	rb, b := open("u", "2.2.2.2")
+	ra2, a2 := open("u", "1.1.1.1") // the oldest IP opens another connection: still the oldest
+	_, other := open("v", "1.1.1.1")
+	_, c := open("u", "3.3.3.3")
+	if !a1.closed || !a2.closed || b.closed || c.closed || other.closed {
+		t.Fatalf("closed: a1=%v a2=%v b=%v c=%v other user=%v", a1.closed, a2.closed, b.closed, c.closed, other.closed)
+	}
+	if ips := tr.ips["u"]; len(ips) != 2 || ips["2.2.2.2"] == nil || ips["3.3.3.3"] == nil {
+		t.Fatalf("IPs after the swap: %v", ips)
+	}
+	// the dropped IP comes straight back as the newest one and pushes out 2.2.2.2; its old
+	// connection closing late must not take the returned IP's slot away
+	_, a3 := open("u", "1.1.1.1")
+	tr.leave(ra2)
+	if !b.closed || a3.closed || c.closed {
+		t.Fatalf("after the return: b=%v a3=%v c=%v", b.closed, a3.closed, c.closed)
+	}
+	tr.leave(rb)
+	if ips := tr.ips["u"]; len(ips) != 2 || ips["1.1.1.1"] == nil || ips["1.1.1.1"].conns != 1 || ips["3.3.3.3"] == nil {
+		t.Fatalf("IPs after the return: %v", ips)
 	}
 }

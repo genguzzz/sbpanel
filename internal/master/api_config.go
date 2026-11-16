@@ -563,8 +563,10 @@ func (m *Master) apiSaveSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		setSetting(m.db, k, v)
 	}
-	if _, ok := req["node_core"]; ok {
-		m.reconcile() // every node's spec carries it
+	_, core := req["node_core"]
+	_, devices := req["device_policy"]
+	if core || devices {
+		m.reconcile() // every node's spec carries them
 	}
 	m.audit(r, "settings.update", "", strings.Join(keys(req), ","))
 	writeJSON(w, 200, map[string]bool{"ok": true})

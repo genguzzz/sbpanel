@@ -481,6 +481,19 @@ func TestSpecGroupsAndPolicies(t *testing.T) {
 	if ch := m.reconcile("n1"); len(ch) != 1 {
 		t.Fatal("policy change must bump revision")
 	}
+	// the device policy travels with the limit, so the node can apply it on its own
+	if spec.Policies[0].KickOldest {
+		t.Fatal("kick_oldest set under the default policy")
+	}
+	setSetting(m.db, "device_policy", "kick_oldest")
+	if ch := m.reconcile("n1"); len(ch) != 1 {
+		t.Fatal("device policy change must bump revision")
+	}
+	m.db.Exec(`UPDATE users SET speed_down=500 WHERE id=2`) // a policy without a device limit
+	spec, _ = buildSpec(m.db, "n1")
+	if len(spec.Policies) != 2 || !spec.Policies[0].KickOldest || spec.Policies[1].KickOldest {
+		t.Fatalf("kick_oldest policies %v", spec.Policies)
+	}
 }
 
 func itoa(i int) string { b, _ := json.Marshal(i); return string(b) }

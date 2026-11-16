@@ -222,6 +222,9 @@ message UserPolicy {
   // in those inbounds' user lists (subscriptions keep working); the node refuses their new
   // connections there and closes the open ones.
   repeated string blocked_inbounds = 5;
+  // At the device limit, a connection from a new IP drops the IP that has been connected
+  // the longest instead of being refused. Older nodes ignore it and keep refusing.
+  bool kick_oldest = 6;
 }
 
 message InboundSpec {
