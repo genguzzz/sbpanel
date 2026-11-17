@@ -31,14 +31,27 @@ func (e Endpoint) SingboxOutbound() map[string]any {
 		switch e.Network {
 		case "ws":
 			t := map[string]any{"type": "ws", "path": e.Path}
-			if e.Host != "" {
-				t["headers"] = map[string]any{"Host": e.Host}
+			if len(e.transportHeaders()) > 0 {
+				t["headers"] = e.transportHeaders()
+			}
+			if e.MaxEarlyData > 0 {
+				t["max_early_data"] = e.MaxEarlyData
+				if e.EarlyDataHeader != "" {
+					t["early_data_header_name"] = e.EarlyDataHeader
+				}
 			}
 			o["transport"] = t
 		case "httpupgrade":
-			o["transport"] = map[string]any{"type": "httpupgrade", "path": e.Path, "host": e.Host}
+			t := map[string]any{"type": "httpupgrade", "path": e.Path, "host": e.Host}
+			if len(e.Headers) > 0 {
+				t["headers"] = e.transportHeaders()
+			}
+			o["transport"] = t
 		case "http":
 			t := map[string]any{"type": "http", "path": e.Path}
+			if len(e.Headers) > 0 {
+				t["headers"] = e.transportHeaders()
+			}
 			if e.Host != "" {
 				t["host"] = []string{e.Host}
 			}
@@ -70,6 +83,9 @@ func (e Endpoint) SingboxOutbound() map[string]any {
 	case "shadowsocks":
 		o["method"], o["password"] = e.SSMethod, e.Password
 	case "hysteria2":
+		if e.ObfsType != "" {
+			o["obfs"] = map[string]any{"type": e.ObfsType, "password": e.ObfsPassword}
+		}
 		o["password"] = e.Password
 		o["tls"] = tls()
 	case "tuic":
@@ -133,8 +149,14 @@ func (e Endpoint) MihomoProxy() map[string]any {
 		switch e.Network {
 		case "ws", "httpupgrade":
 			ws := map[string]any{"path": e.Path}
-			if e.Host != "" {
-				ws["headers"] = map[string]any{"Host": e.Host}
+			if len(e.transportHeaders()) > 0 {
+				ws["headers"] = e.transportHeaders()
+			}
+			if e.MaxEarlyData > 0 {
+				ws["max-early-data"] = e.MaxEarlyData
+				if e.EarlyDataHeader != "" {
+					ws["early-data-header-name"] = e.EarlyDataHeader
+				}
 			}
 			if e.Network == "httpupgrade" {
 				p["network"] = "ws"
@@ -181,6 +203,9 @@ func (e Endpoint) MihomoProxy() map[string]any {
 	case "shadowsocks":
 		p["type"], p["cipher"], p["password"] = "ss", e.SSMethod, e.Password
 	case "hysteria2":
+		if e.ObfsType != "" {
+			p["obfs"], p["obfs-password"] = e.ObfsType, e.ObfsPassword
+		}
 		p["type"], p["password"] = "hysteria2", e.Password
 		tlsCommon()
 		delete(p, "client-fingerprint")
@@ -211,4 +236,21 @@ func (e Endpoint) MihomoProxy() map[string]any {
 		p["ip-version"] = "ipv4-prefer"
 	}
 	return p
+}
+
+// transportHeaders returns a fresh map so host overrides never mutate sibling endpoints.
+func (e Endpoint) transportHeaders() map[string]string {
+	h := make(map[string]string, len(e.Headers)+1)
+	for k, v := range e.Headers {
+		h[k] = v
+	}
+	if e.Host != "" {
+		for k := range h {
+			if strings.EqualFold(k, "Host") {
+				delete(h, k)
+			}
+		}
+		h["Host"] = e.Host
+	}
+	return h
 }

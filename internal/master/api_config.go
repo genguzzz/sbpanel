@@ -619,7 +619,7 @@ func (m *Master) apiUserSub(w http.ResponseWriter, r *http.Request) {
 	base := m.subURL(r, token)
 	writeJSON(w, 200, map[string]any{
 		"url": base, "qr": string(qrDataURI(base)), "links": links, "access": access, "active": u.active(),
-		"formats": map[string]string{"base64": base + "?format=base64", "singbox": base + "?format=singbox", "mihomo": base + "?format=mihomo", "surge": base + "?format=surge", "page": base + "?format=html"},
+		"formats": map[string]string{"shadowrocket": base + "?format=shadowrocket", "base64": base + "?format=base64", "singbox": base + "?format=singbox", "mihomo": base + "?format=mihomo", "surge": base + "?format=surge", "page": base + "?format=html"},
 	})
 }
 

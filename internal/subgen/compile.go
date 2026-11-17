@@ -23,8 +23,9 @@ func set(xs ...string) map[string]bool {
 }
 
 var ClientCaps = map[string]Caps{
-	"mihomo":  {Protocols: set("vless", "vmess", "trojan", "shadowsocks", "hysteria2", "tuic", "anytls"), Reality: true, Transports: set("", "tcp", "ws", "grpc", "http", "httpupgrade")},
-	"singbox": {Protocols: set("vless", "vmess", "trojan", "shadowsocks", "hysteria2", "tuic", "anytls"), Reality: true, Transports: set("", "tcp", "ws", "grpc", "http", "httpupgrade")},
+	"mihomo":       {Protocols: set("vless", "vmess", "trojan", "shadowsocks", "hysteria2", "tuic", "anytls"), Reality: true, Transports: set("", "tcp", "ws", "grpc", "http", "httpupgrade")},
+	"shadowrocket": {Protocols: set("vless", "vmess", "trojan", "shadowsocks", "hysteria2", "tuic", "anytls"), Reality: true, Transports: set("", "tcp", "ws", "grpc", "http", "httpupgrade")},
+	"singbox":      {Protocols: set("vless", "vmess", "trojan", "shadowsocks", "hysteria2", "tuic", "anytls"), Reality: true, Transports: set("", "tcp", "ws", "grpc", "http", "httpupgrade")},
 	// Surge 5: no VLESS, no REALITY, no gRPC/h2/httpupgrade; ws only for vmess/trojan.
 	"surge": {Protocols: set("vmess", "trojan", "shadowsocks", "hysteria2", "tuic"), Transports: set("", "tcp", "ws"),
 		SSMethods: set("aes-128-gcm", "aes-256-gcm", "chacha20-ietf-poly1305", "2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm", "2022-blake3-chacha20-poly1305")},
@@ -35,6 +36,12 @@ func Supported(client string, e Endpoint) (bool, string) {
 	c, ok := ClientCaps[client]
 	if !ok {
 		return true, ""
+	}
+	if e.ObfsType != "" && e.ObfsType != "salamander" {
+		return false, fmt.Sprintf("%s does not export Hysteria2 obfuscation %s", client, e.ObfsType)
+	}
+	if e.Network != "" && e.Network != "tcp" && e.Type != "vless" && e.Type != "vmess" && e.Type != "trojan" {
+		return false, fmt.Sprintf("%s does not export %s transport for %s", client, e.Network, e.Type)
 	}
 	if !c.Protocols[e.Type] {
 		return false, fmt.Sprintf("%s doesn't support %s", client, e.Type)
@@ -75,6 +82,16 @@ type Compiled struct {
 	Sets     map[string]RuleSet
 	Mirror   string
 	Warnings []string
+}
+
+// ipv6Node names the first node that prefers IPv6 for a hostname address.
+func (c *Compiled) ipv6Node() string {
+	for _, e := range c.Nodes {
+		if e.ipStrategy() == "prefer_ipv6" {
+			return e.Remark
+		}
+	}
+	return ""
 }
 
 // dnsGeosite returns the geosite name behind a rule set id, for DNS policy.
@@ -244,6 +261,15 @@ func Compile(p *Profile, client string, eps []Endpoint) (*Compiled, error) {
 		seen[n]++
 		e.Remark = n
 		c.Nodes = append(c.Nodes, e)
+	}
+	// A node that must be reached over IPv6 needs the client's IPv6 switched on:
+	// Mihomo's dns.ipv6=false drops AAAA answers and sing-box's ipv4_only strategy
+	// never resolves them, so the per-node preference would silently become IPv4.
+	if !c.DNS.IPv6 {
+		if n := c.ipv6Node(); n != "" {
+			c.DNS.IPv6 = true
+			c.warn("IPv6 DNS enabled: node %s prefers IPv6", n)
+		}
 	}
 	// 2. resolve groups (depth-first so referenced groups are known first)
 	byID := map[string]Group{}

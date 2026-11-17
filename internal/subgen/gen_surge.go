@@ -3,6 +3,7 @@ package subgen
 import (
 	"fmt"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -25,6 +26,7 @@ func (e Endpoint) surgeProxy() string {
 	}
 	tls := func() {
 		add("sni", e.SNI)
+		add("alpn", strings.Join(e.ALPN, ","))
 		if e.Insecure {
 			add("skip-cert-verify", "true")
 		}
@@ -33,8 +35,18 @@ func (e Endpoint) surgeProxy() string {
 		if e.Network == "ws" {
 			add("ws", "true")
 			add("ws-path", or(e.Path, "/"))
-			if e.Host != "" {
-				kv = append(kv, `ws-headers=Host:"`+e.Host+`"`)
+			h := e.transportHeaders()
+			if len(h) > 0 {
+				keys := make([]string, 0, len(h))
+				for k := range h {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+				parts := make([]string, 0, len(keys))
+				for _, k := range keys {
+					parts = append(parts, k+":"+strconv.Quote(h[k]))
+				}
+				kv = append(kv, "ws-headers="+strings.Join(parts, "|"))
 			}
 		}
 	}
@@ -62,13 +74,18 @@ func (e Endpoint) surgeProxy() string {
 		ws()
 	case "hysteria2":
 		head = "hysteria2, " + srv
+		if e.ObfsType == "salamander" {
+			add("salamander-password", e.ObfsPassword)
+		}
 		add("password", e.Password)
 		tls()
 	case "tuic":
 		head = "tuic-v5, " + srv
 		add("uuid", e.UUID)
 		add("password", e.Password)
-		add("alpn", or(strings.Join(e.ALPN, ","), "h3"))
+		if len(e.ALPN) == 0 {
+			add("alpn", "h3") // Surge's TUIC needs an ALPN; sing-box's TUIC server speaks h3
+		}
 		tls()
 	}
 	switch e.ipStrategy() {

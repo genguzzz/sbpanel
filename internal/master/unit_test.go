@@ -169,10 +169,10 @@ func testEntries() []subEntry {
 	return []subEntry{
 		mk("vless", `{"listen_port":443,"_flow":"xtls-rprx-vision","tls":{"enabled":true,"server_name":"www.microsoft.com","reality":{"enabled":true,"private_key":"`+priv+`","short_id":["abcd"]}}}`, "reality"),
 		mk("vless", `{"listen_port":8443,"tls":{"enabled":true,"server_name":"cdn.example.com","alpn":["h2"]},"transport":{"type":"grpc","service_name":"svc"}}`, "vless-grpc"),
-		mk("vmess", `{"listen_port":8443,"tls":{"enabled":true,"server_name":"a.example.com"},"transport":{"type":"ws","path":"/ws","headers":{"Host":"h.example.com"}}}`, "vmess-ws"),
+		mk("vmess", `{"listen_port":8443,"tls":{"enabled":true,"server_name":"a.example.com"},"transport":{"type":"ws","path":"/ws","headers":{"Host":"h.example.com","X-Test":"preserved"},"max_early_data":2048,"early_data_header_name":"Sec-WebSocket-Protocol"}}`, "vmess-ws"),
 		mk("trojan", `{"listen_port":4433,"tls":{"enabled":true,"server_name":"t.example.com"}}`, "trojan"),
 		mk("shadowsocks", `{"listen_port":8388,"method":"2022-blake3-aes-128-gcm","password":"`+ssKey("server", 16)+`"}`, "ss"),
-		mk("hysteria2", `{"listen_port":8444,"tls":{"enabled":true,"server_name":"h.example.com"}}`, "hy2"),
+		mk("hysteria2", `{"listen_port":8444,"tls":{"enabled":true,"server_name":"h.example.com"},"obfs":{"type":"salamander","password":"obfs-example"}}`, "hy2"),
 		mk("tuic", `{"listen_port":8445,"congestion_control":"bbr","tls":{"enabled":true,"server_name":"tu.example.com"}}`, "tuic"),
 		mk("anytls", `{"listen_port":8446,"tls":{"enabled":true,"server_name":"any.example.com"}}`, "anytls"),
 		mk("vless", `{"listen_port":80,"transport":{"type":"httpupgrade","path":"/up","host":"up.example.com"}}`, "vless-plain"),
@@ -296,7 +296,7 @@ func TestDetectFormat(t *testing.T) {
 	cases := map[string]string{
 		"ClashMetaForAndroid/2.11": "mihomo", "clash-verge/v2": "mihomo", "Stash/2.4": "mihomo", "mihomo/1.19": "mihomo",
 		"SFA/1.11.0 (sing-box 1.14)": "singbox", "sing-box 1.14.4": "singbox", "SFI/1.0": "singbox",
-		"v2rayNG/1.9": "base64", "Shadowrocket/2000": "base64", "": "base64",
+		"v2rayNG/1.9": "base64", "Shadowrocket/2000": "shadowrocket", "": "base64",
 	}
 	for ua, want := range cases {
 		r := httptest.NewRequest("GET", "/s/x", nil)

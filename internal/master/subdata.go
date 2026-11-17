@@ -41,7 +41,7 @@ var subClients = []subClient{
 		}},
 	{ID: "shadowrocket", Name: "Shadowrocket", Platforms: []string{"ios"}, Download: "https://apps.apple.com/app/id932747118",
 		link: func(s, n string) string {
-			return "shadowrocket://add/sub://" + base64.RawURLEncoding.EncodeToString([]byte(s)) + "?remark=" + url.QueryEscape(n)
+			return "shadowrocket://add/sub://" + base64.RawURLEncoding.EncodeToString([]byte(addQuery(s, "format=shadowrocket"))) + "?remark=" + url.QueryEscape(n)
 		}},
 	{ID: "hiddify", Name: "Hiddify", Platforms: []string{"ios", "android", "windows", "macos", "linux"}, Download: "https://github.com/hiddify/hiddify-app/releases",
 		link: func(s, n string) string { return "hiddify://import/" + s + "#" + url.PathEscape(n) }},
@@ -325,7 +325,7 @@ func addQuery(u, kv string) string {
 
 func subFormats(link string) map[string]string {
 	out := map[string]string{"auto": link}
-	for _, f := range []string{"base64", "singbox", "mihomo", "surge", "links", "json"} {
+	for _, f := range []string{"base64", "singbox", "mihomo", "surge", "shadowrocket", "links", "json"} {
 		out[f] = addQuery(link, "format="+f)
 	}
 	return out

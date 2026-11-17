@@ -117,7 +117,7 @@ var oaSchemas = js{
 	"UserDetail": tObj(js{"user": ref("User"), "ips": arr(tObj(js{"ip": tStr(""), "node_id": tStr(""), "node": tStr(""),
 		"first_seen": tTS(""), "last_seen": tTS(""), "online": tBool("")}))}),
 	"UserSub": tObj(js{"url": tStr("Subscription URL"), "qr": tStr("QR code data URI"), "active": tBool(""),
-		"formats": tObj(js{"base64": tStr(""), "singbox": tStr(""), "mihomo": tStr(""), "surge": tStr(""), "page": tStr("")}),
+		"formats": tObj(js{"shadowrocket": tStr("Structured node list with per-node IP preference"), "base64": tStr(""), "singbox": tStr(""), "mihomo": tStr(""), "surge": tStr(""), "page": tStr("")}),
 		"links":   arr(tObj(js{"remark": tStr(""), "type": tStr(""), "uri": tStr("Share links")})),
 		"access":  arr(tObj(js{"ts": tTS(""), "ip": tStr(""), "ua": tStr(""), "format": tStr("")}))}),
 	"BatchRequest": tObj(js{

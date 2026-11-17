@@ -82,7 +82,7 @@ func clients() map[string]ClientTemplate {
 }
 
 func defaultDNS(direct ...string) DNSPolicy {
-	return DNSPolicy{Mode: "fake-ip", Domestic: []string{"https://223.5.5.5/dns-query"}, Remote: []string{"https://1.1.1.1/dns-query"},
+	return DNSPolicy{IPv6: true, Mode: "fake-ip", Domestic: []string{"https://223.5.5.5/dns-query"}, Remote: []string{"https://1.1.1.1/dns-query"},
 		DirectSets: append([]string{}, direct...)}
 }
 

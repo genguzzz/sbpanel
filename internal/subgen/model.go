@@ -98,33 +98,37 @@ type Profile struct {
 	Clients map[string]ClientTemplate `json:"clients"` // "mihomo","singbox","surge"
 }
 
-// Endpoint is the client-facing node. Its fields mirror sbpanel's subEntry one
-// for one (so the master converts with a plain type conversion); Node is the
-// panel node name, used by group filters together with Remark.
+// Endpoint is the shared client-facing connection model. The master defines
+// subEntry from this type so extraction and exporters cannot drift structurally.
+// Node is the panel node name, used by group filters together with Remark.
 type Endpoint struct {
-	Remark     string
-	Type       string
-	Address    string
-	Port       int
-	UUID       string
-	Password   string
-	Flow       string
-	Security   string // "", "tls", "reality"
-	SNI        string
-	ALPN       []string
-	FP         string
-	Insecure   bool
-	PBK, SID   string
-	Network    string // tcp, ws, grpc, http, httpupgrade
-	Path, Host string
-	Service    string // grpc service name
-	SSMethod   string
-	CC         string // tuic congestion control
-	Node       string
-	Region     string // ISO code of where traffic exits ("" = unknown)
-	Inbound    int64  // panel inbound id (usage and limits)
-	Line       string // "<node> <REGION> · <inbound>" before host remarks
-	IPPrefer   string // "ipv6" / "ipv4": which family the client should try first for a hostname Address
+	Remark                 string
+	Type                   string
+	Address                string
+	Port                   int
+	UUID                   string
+	Password               string
+	Flow                   string
+	Security               string // "", "tls", "reality"
+	SNI                    string
+	ALPN                   []string
+	FP                     string
+	Insecure               bool
+	PBK, SID               string
+	Network                string // tcp, ws, grpc, http, httpupgrade
+	Path, Host             string
+	Service                string // grpc service name
+	SSMethod               string
+	CC                     string // tuic congestion control
+	Node                   string
+	Region                 string            // ISO code of where traffic exits ("" = unknown)
+	Inbound                int64             // panel inbound id (usage and limits)
+	Line                   string            // "<node> <REGION> · <inbound>" before host remarks
+	Headers                map[string]string // client transport headers
+	MaxEarlyData           int
+	EarlyDataHeader        string
+	ObfsType, ObfsPassword string // Hysteria2 obfuscation, never the server masquerade
+	IPPrefer               string // "ipv6" / "ipv4": which family the client should try first for a hostname Address
 }
 
 // Meta is per-request context available to templates.

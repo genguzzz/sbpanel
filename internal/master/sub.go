@@ -20,31 +20,7 @@ import (
 )
 
 // subEntry is one client-facing endpoint: an inbound as reached through a host.
-type subEntry struct {
-	Remark     string
-	Type       string
-	Address    string
-	Port       int
-	UUID       string
-	Password   string
-	Flow       string
-	Security   string // "", "tls", "reality"
-	SNI        string
-	ALPN       []string
-	FP         string
-	Insecure   bool
-	PBK, SID   string
-	Network    string // tcp, ws, grpc, http, httpupgrade
-	Path, Host string
-	Service    string // grpc service name
-	SSMethod   string
-	CC         string // tuic congestion control
-	Node       string // panel node name (routing filters); keep fields in sync with subgen.Endpoint
-	Region     string // ISO code of where traffic exits ("" = unknown)
-	Inbound    int64  // panel inbound id (usage and limits)
-	Line       string // "<node> <REGION> · <inbound>" before host remarks
-	IPPrefer   string // "ipv6" / "ipv4": which family the client should try first for a hostname Address
-}
+type subEntry subgen.Endpoint
 
 type subUser struct {
 	ID              int64
@@ -132,12 +108,29 @@ func entryFromInbound(typ string, opts map[string]any, client map[string]any) su
 		e.Network = str(t, "type")
 		e.Path = str(t, "path")
 		e.Service = str(t, "service_name")
+		if v, ok := t["max_early_data"].(float64); ok {
+			e.MaxEarlyData = int(v)
+		}
+		e.EarlyDataHeader = str(t, "early_data_header_name")
 		e.Host = str(t, "host")
-		if h := obj(t, "headers"); h != nil && e.Host == "" {
-			e.Host = str(h, "Host")
+		if h := obj(t, "headers"); h != nil {
+			if e.Host == "" {
+				e.Host = str(h, "Host")
+			}
+			e.Headers = map[string]string{}
+			for k, v := range h {
+				if value, ok := v.(string); ok {
+					e.Headers[k] = value
+				}
+			}
 		}
 		if hs := strs(t, "host"); e.Host == "" && len(hs) > 0 {
 			e.Host = hs[0]
+		}
+	}
+	if typ == "hysteria2" {
+		if o := obj(opts, "obfs"); o != nil {
+			e.ObfsType, e.ObfsPassword = str(o, "type"), str(o, "password")
 		}
 	}
 	if typ == "shadowsocks" {
@@ -383,6 +376,9 @@ func (e subEntry) uri() string {
 		m := map[string]any{"v": "2", "ps": e.Remark, "add": e.Address, "port": strconv.Itoa(e.Port), "id": e.UUID,
 			"aid": "0", "scy": "auto", "net": e.Network, "type": "none", "host": e.Host, "path": e.Path, "tls": e.Security,
 			"sni": e.SNI, "alpn": strings.Join(e.ALPN, ","), "fp": e.FP}
+		if e.Insecure {
+			m["allowInsecure"] = true
+		}
 		if e.Network == "grpc" {
 			m["path"] = e.Service
 		}
@@ -392,6 +388,13 @@ func (e subEntry) uri() string {
 		ui := base64.RawURLEncoding.EncodeToString([]byte(e.SSMethod + ":" + e.Password))
 		return "ss://" + ui + "@" + hostPort(e.Address, e.Port) + frag
 	case "hysteria2":
+		if e.ObfsType != "" {
+			q.Set("obfs", e.ObfsType)
+			q.Set("obfs-password", e.ObfsPassword)
+		}
+		if len(e.ALPN) > 0 {
+			q.Set("alpn", strings.Join(e.ALPN, ","))
+		}
 		if e.SNI != "" {
 			q.Set("sni", e.SNI)
 		}
@@ -525,7 +528,7 @@ func mihomoConfig(es []subEntry) []byte {
 
 func detectFormat(r *http.Request) string {
 	switch f := strings.ToLower(r.URL.Query().Get("format")); f {
-	case "base64", "links", "singbox", "sing-box", "clash", "mihomo", "surge", "html", "json":
+	case "base64", "links", "singbox", "sing-box", "clash", "mihomo", "surge", "shadowrocket", "html", "json":
 		if f == "sing-box" {
 			return "singbox"
 		}
@@ -536,6 +539,8 @@ func detectFormat(r *http.Request) string {
 	}
 	ua := strings.ToLower(r.UserAgent())
 	switch {
+	case strings.Contains(ua, "shadowrocket"):
+		return "shadowrocket"
 	case strings.Contains(ua, "surge"):
 		return "surge"
 	case strings.Contains(ua, "clash"), strings.Contains(ua, "mihomo"), strings.Contains(ua, "stash"), strings.Contains(ua, "nyanpasu"):
@@ -654,6 +659,14 @@ func (m *Master) handleSub(w http.ResponseWriter, r *http.Request) {
 			h.Set("Content-Type", "text/plain; charset=utf-8")
 			writeSub(w, r, []byte(base64.StdEncoding.EncodeToString([]byte(subLinks(entries)))))
 		}
+	case "shadowrocket":
+		res := subgen.ShadowrocketSubscription(toEndpoints(entries))
+		h.Set("Content-Type", res.ContentType)
+		if len(res.Warnings) > 0 {
+			warnings, _ := json.Marshal(res.Warnings)
+			h.Set("Subscription-Warnings", base64.StdEncoding.EncodeToString(warnings))
+		}
+		writeSub(w, r, res.Body)
 	case "links":
 		h.Set("Content-Type", "text/plain; charset=utf-8")
 		writeSub(w, r, []byte(subLinks(entries)))

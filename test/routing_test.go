@@ -76,9 +76,15 @@ func TestRoutingProfiles(t *testing.T) {
 	if !strings.Contains(sb, "#!MANAGED-CONFIG "+s.URL) {
 		t.Fatal("surge managed-config header")
 	}
-	// Shadowrocket keeps the plain node list
-	if _, b = get("", "Shadowrocket/2070"); strings.Contains(string(b), "proxies") || len(b) == 0 {
-		t.Fatal("shadowrocket must get base64 links")
+	// Shadowrocket gets a structured node subscription, never a full rule profile.
+	if _, b = get("", "Shadowrocket/2070"); !strings.HasPrefix(string(b), "proxies:") || strings.Contains(string(b), "proxy-groups:") {
+		t.Fatal("shadowrocket must get structured nodes")
+	}
+	if _, b = get("?format=base64", "Shadowrocket/2070"); strings.HasPrefix(string(b), "proxies:") || len(b) == 0 {
+		t.Fatal("explicit legacy format must win")
+	}
+	if _, b = get("?format=shadowrocket", "other"); !strings.HasPrefix(string(b), "proxies:") {
+		t.Fatal("explicit Shadowrocket format")
 	}
 
 	// ETag revalidation
