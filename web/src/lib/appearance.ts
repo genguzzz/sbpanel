@@ -88,7 +88,9 @@ export function apply(a: Appearance) {
   if (a.density && a.density !== 'default') d.dataset.density = a.density
   else delete d.dataset.density
   document.getElementById('sbp-accent')?.remove()
-  if (a.accent?.light && a.accent?.dark) {
+  // Only plain hex colours reach the stylesheet (the values come from localStorage / the server).
+  const okSet = (x?: AccentSet) => !!x && isHex(x.accent) && isHex(x.accentText) && isHex(x.onAccent)
+  if (a.accent && okSet(a.accent.light) && okSet(a.accent.dark)) {
     const v = (x: AccentSet) => `--accent:${x.accent};--accent-text:${x.accentText};--on-accent:${x.onAccent};--focus:${x.accentText};--pine:${x.accent};`
     const s = document.createElement('style')
     s.id = 'sbp-accent'

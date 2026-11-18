@@ -297,9 +297,20 @@ const sectionName = {
   get node() { return tr(SH).secNode }, get more() { return tr(SH).secMore }, get action() { return tr(SH).secAction },
 }
 
+// Recent hits are stored without the subscription token (a user's secret must not outlive the session
+// in localStorage); it is looked up from the live user list when the palette shows them.
+const RECENT_KEY = 'sbp-recent'
+function readRecent(): Hit[] {
+  let raw: unknown
+  try { raw = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]') } catch { return [] }
+  if (!Array.isArray(raw)) return []
+  return raw.filter((h): h is Hit => !!h && typeof h.id === 'string' && typeof h.label === 'string' && typeof h.to === 'string' && h.to.startsWith('#/'))
+    .map(({ token: _token, ...h }) => h)
+}
+// Drop tokens saved by older versions.
+try { if (localStorage.getItem(RECENT_KEY)?.includes('"token"')) localStorage.setItem(RECENT_KEY, JSON.stringify(readRecent())) } catch { /* storage blocked */ }
 function loadRecent(): Hit[] {
-  let hs: Hit[] = []
-  try { hs = JSON.parse(localStorage.getItem('sbp-recent') ?? '[]') } catch { return [] }
+  const hs = readRecent()
   // Pages and actions were stored with the label of the language at the time; relabel them.
   const acts = actions()
   return hs.map((h) => h.kind === 'page' ? { ...h, label: allItems.find((i) => 'p' + i.id === h.id)?.label ?? h.label }
@@ -307,7 +318,8 @@ function loadRecent(): Hit[] {
       : h.kind === 'node' ? { ...h, hint: tr(SH).viewTraffic } : h)
 }
 function pushRecent(h: Hit) {
-  try { localStorage.setItem('sbp-recent', JSON.stringify([h, ...loadRecent().filter((x) => x.id !== h.id)].slice(0, 5))) } catch { /* private mode */ }
+  const { token: _token, ...keep } = h
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify([keep, ...readRecent().filter((x) => x.id !== h.id)].slice(0, 5))) } catch { /* private mode */ }
 }
 
 // Built per call so labels follow the current language.
@@ -340,7 +352,8 @@ function Palette({ open, onOpenChange }: { open: boolean; onOpenChange: (v: bool
     const page = (i: NavItem): Hit => ({ id: 'p' + i.id, label: i.label, kind: 'page', to: href(i.id) })
     const out: { key: keyof typeof sectionName; hits: Hit[] }[] = []
     if (!s) {
-      out.push({ key: 'recent', hits: loadRecent() })
+      const tokens = new Map((users.data ?? []).map((u) => ['u' + u.id, u.sub_token]))
+      out.push({ key: 'recent', hits: loadRecent().map((h) => (h.kind === 'user' ? { ...h, token: tokens.get(h.id) } : h)) })
       out.push({ key: 'action', hits: actions().slice(0, 3) })
       out.push({ key: 'page', hits: allItems.map(page) })
     } else {
@@ -366,7 +379,7 @@ function Palette({ open, onOpenChange }: { open: boolean; onOpenChange: (v: bool
   useEffect(() => { listRef.current?.querySelector('[aria-selected=true]')?.scrollIntoView({ block: 'nearest' }) }, [sel, listRef])
   const pick = (h?: Hit) => {
     if (!h) return
-    pushRecent({ id: h.id, label: h.label, hint: h.hint, kind: h.kind, to: h.to, token: h.token })
+    pushRecent({ id: h.id, label: h.label, hint: h.hint, kind: h.kind, to: h.to })
     location.hash = h.to
     onOpenChange(false)
   }
