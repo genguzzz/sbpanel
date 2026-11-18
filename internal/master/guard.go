@@ -7,6 +7,7 @@ package master
 
 import (
 	"fmt"
+	"path"
 	"strings"
 )
 
@@ -87,15 +88,22 @@ func checkSkeletonFiles(v map[string]any) error {
 // badNodePath rejects file paths a node must never be pointed at: device and kernel
 // files (reading /dev/zero would exhaust the agent's memory) and relative paths.
 func badNodePath(p string) bool {
-	if !strings.HasPrefix(p, "/") || strings.ContainsAny(p, "\x00\n") || strings.Contains(p, "/../") {
+	if !strings.HasPrefix(p, "/") || strings.ContainsAny(p, "\x00\n\r") || strings.Contains(p, "/../") {
 		return true
 	}
+	// "//dev/zero" and "/./proc/self/mem" name the same files as their clean forms
+	c := path.Clean(p) + "/"
 	for _, pre := range []string{"/dev/", "/proc/", "/sys/", "/run/"} {
-		if strings.HasPrefix(p, pre) {
+		if strings.HasPrefix(c, pre) {
 			return true
 		}
 	}
 	return false
+}
+
+// validNodeFilePath accepts a clean absolute path to a certificate / key file on a node.
+func validNodeFilePath(p string) bool {
+	return path.IsAbs(p) && path.Clean(p) == p && !badNodePath(p)
 }
 
 // checkInboundFiles rejects inbound options that make sing-box write files (ACME, data

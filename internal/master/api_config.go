@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -532,6 +533,24 @@ func (m *Master) apiSaveSettings(w http.ResponseWriter, r *http.Request) {
 			if utf8.RuneCountInString(v) > 2000 {
 				writeErr(w, 400, "The announcement can be at most 2000 characters")
 				return
+			}
+		case "update_mirror":
+			// the mirror serves both the release archive and its checksums.txt, so whoever sets it
+			// chooses the binary the next upgrade installs (as root): admin only
+			if p := principalFrom(r); p != nil && !p.can(ScopeAdmin) && v != settingOr(m.db, k, "") {
+				writeErrf(w, http.StatusForbidden, "Permission denied: requires the %s scope", ScopeAdmin)
+				return
+			}
+			if v != "" && (!(strings.HasPrefix(v, "https://") || strings.HasPrefix(v, "http://")) || !strings.HasSuffix(v, "/") || len(v) > 300) {
+				writeErr(w, 400, "The update mirror must be an http(s) URL ending in /, e.g. https://ghfast.top/")
+				return
+			}
+		case "webhook_url":
+			if v != "" {
+				if u, err := url.Parse(v); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || len(v) > 1000 {
+					writeErr(w, 400, "The webhook URL must start with http:// or https://")
+					return
+				}
 			}
 		case "sub_rule_mirror":
 			if v != "" && (!(strings.HasPrefix(v, "https://") || strings.HasPrefix(v, "http://")) || !strings.HasSuffix(v, "/") || len(v) > 300) {

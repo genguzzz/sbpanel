@@ -9,6 +9,7 @@ import (
 	"encoding/base32"
 	"encoding/binary"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -148,7 +149,7 @@ func (l *loginLimiter) blocked(ip, user string) time.Duration {
 	for _, c := range []struct {
 		k   string
 		max int
-	}{{"ip:" + ip, loginMaxIP}, {"user:" + user, loginMaxUser}} {
+	}{{"ip:" + limiterIP(ip), loginMaxIP}, {"user:" + user, loginMaxUser}} {
 		if ts := l.recent(c.k, now); len(ts) >= c.max {
 			if w := loginWindow - now.Sub(ts[len(ts)-c.max]); w > wait {
 				wait = w
@@ -161,11 +162,20 @@ func (l *loginLimiter) blocked(ip, user string) time.Duration {
 func (l *loginLimiter) fail(ip, user string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.fails == nil || len(l.fails) > 100_000 {
-		l.fails = map[string][]time.Time{} // bound memory under a distributed attack
+	if l.fails == nil {
+		l.fails = map[string][]time.Time{}
+	}
+	if len(l.fails) > 100_000 {
+		// bound memory under a distributed attack, but drop only the per-IP counters: wiping
+		// everything would also reset the per-username lockout the attack is running into
+		for k := range l.fails {
+			if strings.HasPrefix(k, "ip:") {
+				delete(l.fails, k)
+			}
+		}
 	}
 	now := time.Now()
-	for _, k := range []string{"ip:" + ip, "user:" + user} {
+	for _, k := range []string{"ip:" + limiterIP(ip), "user:" + user} {
 		ts := append(l.recent(k, now), now)
 		if len(ts) > loginMaxUser {
 			ts = ts[len(ts)-loginMaxUser:]
@@ -177,7 +187,17 @@ func (l *loginLimiter) fail(ip, user string) {
 func (l *loginLimiter) ok(ip string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	delete(l.fails, "ip:"+ip)
+	delete(l.fails, "ip:"+limiterIP(ip))
+}
+
+// limiterIP is the key failed sign-ins are counted under: the address itself, or its /64 for
+// IPv6 (one host usually holds a whole /64, so per-address counting is no limit at all).
+func limiterIP(ip string) string {
+	a := net.ParseIP(ip)
+	if a == nil || a.To4() != nil {
+		return ip
+	}
+	return (&net.IPNet{IP: a.Mask(net.CIDRMask(64, 128)), Mask: net.CIDRMask(64, 128)}).String()
 }
 
 func newTOTPSecret() string {
@@ -271,7 +291,7 @@ func (m *Master) apiAudit(w http.ResponseWriter, r *http.Request) {
 		Detail string `json:"detail"`
 		IP     string `json:"ip"`
 	}
-	out, err := scanRows(m, `SELECT ts, admin, action, target, detail, ip FROM audit_log ORDER BY id DESC LIMIT ?`, []any{qInt(r, "limit", 200)},
+	out, err := scanRows(m, `SELECT ts, admin, action, target, detail, ip FROM audit_log ORDER BY id DESC LIMIT ?`, []any{qLimit(r, 200)},
 		func(s func(...any) error) (row, error) {
 			var x row
 			return x, s(&x.TS, &x.Admin, &x.Action, &x.Target, &x.Detail, &x.IP)

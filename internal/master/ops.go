@@ -272,7 +272,7 @@ func (m *Master) formatEvent(kind string, userID int64, nodeID, detail string) s
 	return settingOr(m.db, "sub_title", "sbpanel") + " · " + title + "\n" + strings.Join(parts, "\n")
 }
 
-var notifyClient = &http.Client{Timeout: 15 * time.Second}
+var notifyClient = guardedClient(15 * time.Second) // webhook URLs are user-configured (netguard.go)
 
 func (m *Master) sendNotify(text string) error {
 	var errs []string

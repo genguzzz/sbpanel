@@ -250,7 +250,7 @@ func Compile(p *Profile, client string, eps []Endpoint) (*Compiled, error) {
 			c.warn("Skipped node %s: %s", e.Remark, why)
 			continue
 		}
-		n := strings.NewReplacer(",", " ", "=", "-", "\n", " ", "\"", "'").Replace(strings.TrimSpace(e.Remark))
+		n := strings.NewReplacer(",", " ", "=", "-", "\n", " ", "\r", " ", "\"", "'").Replace(strings.TrimSpace(e.Remark))
 		if n == "" {
 			n = e.Type
 		}

@@ -580,7 +580,7 @@ func (m *Master) apiNodeCert(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	for _, p := range []string{req.CertPath, req.KeyPath} {
-		if !path.IsAbs(p) || strings.ContainsAny(p, "\x00\n") || path.Clean(p) != p || badNodePath(p) {
+		if !validNodeFilePath(p) {
 			writeErr(w, 400, "Certificate and key need absolute paths on the node")
 			return
 		}
@@ -657,9 +657,11 @@ func (m *Master) apiUpdateCert(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		cp, kp := nz(req.CertPath, c.CertPath), nz(req.KeyPath, c.KeyPath)
-		if !path.IsAbs(cp) || !path.IsAbs(kp) {
-			writeErr(w, 400, "Absolute paths are required")
-			return
+		for _, p := range []string{cp, kp} {
+			if !validNodeFilePath(p) {
+				writeErr(w, 400, "Certificate and key need absolute paths on the node")
+				return
+			}
 		}
 		m.db.Exec(`UPDATE certs SET cert_path=?, key_path=?, updated_at=? WHERE id=?`, cp, kp, now(), id)
 		m.reconcile(append(m.certNodes(id), c.NodeID)...)
