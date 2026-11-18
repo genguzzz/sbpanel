@@ -106,6 +106,23 @@ valid_version() {
 	case "$1" in *[!0-9A-Za-z.-]*) return 1 ;; esac
 }
 
+# get_checksums OUT VERSION MIRRORBASE: checksums.txt from github.com directly, so a mirror can't
+# serve a tampered archive with a matching sum. Only when github.com is unreachable (a network
+# error or timeout; an HTTP error is an answer) does the mirror's copy count, with a warning.
+get_checksums() {
+	direct="https://github.com/$REPO/releases/download/$2/checksums.txt"
+	if [ -z "$MIRROR" ]; then
+		fetch -fsSL --retry 3 -o "$1" "$direct" || die "cannot download checksums"
+		return 0
+	fi
+	rc=0
+	fetch -fsSL --max-time 15 -o "$1" "$direct" || rc=$?
+	[ "$rc" = 0 ] && return 0
+	[ "$rc" = 22 ] && die "cannot download checksums ($direct)"
+	warn "github.com unreachable; checksums.txt came from the mirror: integrity depends on the mirror"
+	fetch -fsSL --retry 3 -o "$1" "$3/checksums.txt" || die "cannot download checksums"
+}
+
 sha256() { if need sha256sum; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi; }
 
 latest_version() {
@@ -126,7 +143,7 @@ download() {
 	trap 'rm -rf "$TMP"' EXIT
 	say "downloading sbpanel $SBP_VERSION ($ARCH)"
 	fetch -fL --retry 3 -o "$TMP/$name" "$base/$name" || die "download failed: $base/$name"
-	fetch -fsSL --retry 3 -o "$TMP/checksums.txt" "$base/checksums.txt" || die "cannot download checksums"
+	get_checksums "$TMP/checksums.txt" "$SBP_VERSION" "$base"
 	want="$(grep " $name\$" "$TMP/checksums.txt" | cut -d' ' -f1)"
 	[ -n "$want" ] && [ "$want" = "$(sha256 "$TMP/$name")" ] || die "checksum mismatch for $name"
 	PKG="sbpanel_${SBP_VERSION}_linux_${ARCH}"

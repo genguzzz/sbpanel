@@ -2,6 +2,9 @@ package updater
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -60,5 +63,61 @@ func TestNoRedirectToPlainHTTP(t *testing.T) {
 	s := Source{Client: tlsSrv.Client()}
 	if _, err := s.get(context.Background(), tlsSrv.URL+"/checksums.txt"); err == nil || !strings.Contains(err.Error(), "refusing redirect") {
 		t.Fatalf("https -> http redirect followed: %v", err)
+	}
+}
+
+// releaseServer serves one release; sum overrides the archive's listed checksum.
+func releaseServer(archive []byte, sum string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		p := r.URL.Path
+		switch {
+		case strings.HasSuffix(p, "/o/r/releases/download/v0.5.0/checksums.txt"):
+			fmt.Fprintf(w, "%s  sbpanel_v0.5.0_linux_amd64.tar.gz\n", sum)
+		case strings.HasSuffix(p, "/o/r/releases/download/v0.5.0/sbpanel_v0.5.0_linux_amd64.tar.gz"):
+			w.Write(archive)
+		default:
+			http.NotFound(w, r)
+		}
+	}
+}
+
+func shaHex(b []byte) string { s := sha256.Sum256(b); return hex.EncodeToString(s[:]) }
+
+func TestChecksumsBypassMirror(t *testing.T) {
+	good := tarGz(t, map[string]string{"sbpanel_v0.5.0_linux_amd64/sbnode": "NODE"})
+	evil := tarGz(t, map[string]string{"sbpanel_v0.5.0_linux_amd64/sbnode": "EVIL"})
+	direct := httptest.NewServer(releaseServer(good, shaHex(good)))
+	defer direct.Close()
+	// the mirror serves a tampered archive with a matching checksums.txt
+	mirror := httptest.NewTLSServer(releaseServer(evil, shaHex(evil)))
+	defer mirror.Close()
+	s := Source{Repo: "o/r", Web: direct.URL, Mirror: mirror.URL + "/", Client: mirror.Client()}
+	_, err := s.Fetch(context.Background(), "v0.5.0", "amd64", t.TempDir(), "sbnode")
+	if err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
+		t.Fatalf("tampered mirror archive accepted: %v", err)
+	}
+	// a direct 404 is an answer, not an outage: no fallback to the mirror's checksums
+	gone := httptest.NewServer(http.NotFoundHandler())
+	defer gone.Close()
+	s.Web = gone.URL
+	if _, err := s.Fetch(context.Background(), "v0.5.0", "amd64", t.TempDir(), "sbnode"); err == nil {
+		t.Fatal("fell back to the mirror after a 404")
+	}
+}
+
+func TestChecksumsMirrorFallback(t *testing.T) {
+	good := tarGz(t, map[string]string{"sbpanel_v0.5.0_linux_amd64/sbnode": "NODE"})
+	mirror := httptest.NewTLSServer(releaseServer(good, shaHex(good)))
+	defer mirror.Close()
+	down := httptest.NewServer(http.NotFoundHandler())
+	downURL := down.URL
+	down.Close() // GitHub unreachable: connection refused
+	s := Source{Repo: "o/r", Web: downURL, Mirror: mirror.URL + "/", Client: mirror.Client()}
+	bins, err := s.Fetch(context.Background(), "v0.5.0", "amd64", t.TempDir(), "sbnode")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bins["sbnode"].Note != MirrorChecksumNote {
+		t.Fatalf("fallback not reported: %+v", bins["sbnode"])
 	}
 }

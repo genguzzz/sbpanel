@@ -39,6 +39,20 @@ latest() {
 	echo "$tag"
 }
 
+# checksums OUT VERSION MIRRORBASE: checksums.txt from github.com directly, so a mirror can't
+# serve a tampered archive with a matching sum. Only when github.com is unreachable (a network
+# error or timeout; an HTTP error is an answer) does the mirror's copy count, with a warning.
+checksums() {
+	direct="https://github.com/$REPO/releases/download/$2/checksums.txt"
+	[ -n "${SBP_MIRROR:-}" ] || { dl -fsSL --retry 3 -o "$1" "$direct"; return; }
+	rc=0
+	dl -fsSL --max-time 15 -o "$1" "$direct" || rc=$?
+	[ "$rc" = 0 ] && return 0
+	[ "$rc" = 22 ] && return 1
+	say "github.com unreachable; checksums.txt came from the mirror: integrity depends on the mirror"
+	dl -fsSL --retry 3 -o "$1" "$3/checksums.txt"
+}
+
 # fetch NAME DATADIR: make sure <data>/bin/NAME is the wanted release
 fetch() {
 	name="$1"; bin="$2/bin"
@@ -59,7 +73,7 @@ fetch() {
 	tmp="$(mktemp -d "$bin/.dl.XXXXXX")"
 	say "downloading $name $want ($a)"
 	if ! dl -fsSL --retry 3 -o "$tmp/$pkg.tar.gz" "$base/$pkg.tar.gz" ||
-		! dl -fsSL --retry 3 -o "$tmp/checksums.txt" "$base/checksums.txt"; then
+		! checksums "$tmp/checksums.txt" "$want" "$base"; then
 		rm -rf "$tmp"
 		[ -n "$have" ] || die "download failed: $base/$pkg.tar.gz"
 		say "download failed; running the cached $name $have"

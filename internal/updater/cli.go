@@ -72,6 +72,9 @@ func (c CLI) Run(ctx context.Context, say func(string, ...any)) (*Result, error)
 			return nil, err
 		}
 		defer os.RemoveAll(filepath.Join(dir, "cli"))
+		if n := bins[c.Binary].Note; n != "" {
+			say("warning: %s", n)
+		}
 		src, to = bins[c.Binary].Path, tag
 	}
 	p := Plan{Service: service, Init: initSys, Target: target, Dir: dir, From: from, To: to,

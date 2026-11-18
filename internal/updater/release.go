@@ -60,9 +60,26 @@ type Source struct {
 
 func (s Source) repo() string { return or(s.Repo, Repo) }
 func (s Source) api() string  { return strings.TrimRight(or(s.API, "https://api.github.com"), "/") }
-func (s Source) web() string {
-	return s.Mirror + strings.TrimRight(or(s.Web, "https://github.com"), "/")
+func (s Source) web() string { return s.Mirror + s.direct() }
+
+// direct is the release host without the mirror prefix.
+func (s Source) direct() string { return strings.TrimRight(or(s.Web, "https://github.com"), "/") }
+
+// checksumDirectTimeout bounds the direct checksums.txt attempt when a mirror is set, so
+// mirror users where GitHub is blocked don't wait long before the fallback.
+var checksumDirectTimeout = 15 * time.Second
+
+// MirrorChecksumNote is set on Binary.Note when GitHub was unreachable and checksums.txt had
+// to come from the mirror.
+const MirrorChecksumNote = "checksums.txt came from the mirror: integrity depends on the mirror"
+
+// statusError is a non-200 answer: the host was reachable.
+type statusError struct {
+	url    string
+	status string
 }
+
+func (e *statusError) Error() string { return "GET " + e.url + ": " + e.status }
 // client is the configured client with a redirect policy that never leaves HTTPS: the
 // archive is only as trustworthy as the checksums.txt fetched over the same path.
 func (s Source) client() *http.Client {
@@ -126,7 +143,7 @@ func (s Source) get(ctx context.Context, url string) (*http.Response, error) {
 	}
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
-		return nil, fmt.Errorf("GET %s: %s", url, resp.Status)
+		return nil, &statusError{url, resp.Status}
 	}
 	return resp, nil
 }
@@ -229,6 +246,7 @@ type Binary struct {
 	Path   string `json:"path"`
 	SHA256 string `json:"sha256"`
 	Size   int64  `json:"size"`
+	Note   string `json:"note,omitempty"` // e.g. MirrorChecksumNote
 }
 
 // Fetch downloads sbpanel_<tag>_linux_<arch>.tar.gz and checksums.txt, verifies the archive
@@ -244,8 +262,9 @@ func (s Source) Fetch(ctx context.Context, tag, arch, dir string, names ...strin
 		return nil, err
 	}
 	name := fmt.Sprintf("sbpanel_%s_linux_%s", tag, arch)
-	base := s.web() + "/" + s.repo() + "/releases/download/" + tag + "/"
-	want, err := s.checksum(ctx, base+"checksums.txt", name+".tar.gz")
+	rel := "/" + s.repo() + "/releases/download/" + tag + "/"
+	base := s.web() + rel
+	want, note, err := s.releaseChecksum(ctx, rel, name+".tar.gz")
 	if err != nil {
 		return nil, err
 	}
@@ -258,13 +277,44 @@ func (s Source) Fetch(ctx context.Context, tag, arch, dir string, names ...strin
 	if sum != want {
 		return nil, fmt.Errorf("checksum mismatch for %s.tar.gz: got %s, want %s", name, sum, want)
 	}
-	return extract(archive, name, dir, names)
+	bins, err := extract(archive, name, dir, names)
+	if err == nil && note != "" {
+		logf("%s %s: %s", name, tag, note)
+		for n, b := range bins {
+			b.Note = note
+			bins[n] = b
+		}
+	}
+	return bins, err
 }
+
+// releaseChecksum reads the archive's sha256. With a mirror, checksums.txt comes from the
+// release host directly, so the mirror can't serve a tampered archive with a matching sum;
+// only when that host is unreachable (a network error or timeout, not an HTTP error) is the
+// mirror's copy used, and the returned note says so.
+func (s Source) releaseChecksum(ctx context.Context, rel, file string) (sum, note string, err error) {
+	if s.Mirror == "" {
+		sum, err = s.checksum(ctx, s.direct()+rel+"checksums.txt", file)
+		return sum, "", err
+	}
+	dctx, cancel := context.WithTimeout(ctx, checksumDirectTimeout)
+	sum, err = s.checksum(dctx, s.direct()+rel+"checksums.txt", file)
+	cancel()
+	var se *statusError
+	if err == nil || ctx.Err() != nil || errors.As(err, &se) || !errors.Is(err, errFetch) {
+		return sum, "", err
+	}
+	sum, err = s.checksum(ctx, s.web()+rel+"checksums.txt", file)
+	return sum, MirrorChecksumNote, err
+}
+
+// errFetch marks a checksums.txt that couldn't be fetched (as opposed to one without the file).
+var errFetch = errors.New("checksums")
 
 func (s Source) checksum(ctx context.Context, url, file string) (string, error) {
 	resp, err := s.get(ctx, url)
 	if err != nil {
-		return "", fmt.Errorf("checksums: %w", err)
+		return "", fmt.Errorf("%w: %w", errFetch, err)
 	}
 	defer resp.Body.Close()
 	sc := bufio.NewScanner(io.LimitReader(resp.Body, 1<<20))
