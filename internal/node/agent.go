@@ -54,6 +54,10 @@ func Enroll(dir, master, token, caSHA256 string) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
+	// the directory may predate us (a Docker volume, a hand-made dir): it holds the private key
+	if err := os.Chmod(dir, 0o700); err != nil {
+		return err
+	}
 	hostname, _ := os.Hostname()
 	keyPEM, csr, err := pki.NewKeyAndCSR("sbnode")
 	if err != nil {
@@ -84,7 +88,7 @@ func Enroll(dir, master, token, caSHA256 string) error {
 		fMaster: []byte(master), fID: []byte(resp.NodeId),
 	}
 	for name, b := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), b, 0o600); err != nil {
+		if err := writeAtomic(filepath.Join(dir, name), b); err != nil {
 			return err
 		}
 	}
@@ -545,6 +549,7 @@ func (a *Agent) syncSpec(ctx context.Context, rev uint64, send func(*pb.NodeMsg)
 
 func writeAtomic(path string, b []byte) error {
 	tmp := path + ".tmp"
+	os.Remove(tmp) // WriteFile keeps the mode of a leftover file; start from a fresh 0600 one
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
 	}
