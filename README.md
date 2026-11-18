@@ -183,6 +183,10 @@ scripts/dev-demo.sh stop
 
 The screenshots above were taken from this demo.
 
+## Contributing
+
+Pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues privately: [SECURITY.md](SECURITY.md).
+
 ## License
 
 sbpanel links sing-box (GPL-3.0-or-later) as a library and includes modified sing-box sources in `internal/node/hot/`, so **binaries are distributed under GPL-3.0-or-later**.

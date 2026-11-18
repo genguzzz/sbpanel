@@ -183,6 +183,10 @@ scripts/dev-demo.sh stop
 
 上面的截图都来自这个本地演示。
 
+## 参与贡献
+
+欢迎提交 Pull Request，见 [CONTRIBUTING.md](CONTRIBUTING.md)。安全问题请私下报告：[SECURITY.md](SECURITY.md)。
+
 ## 许可
 
 sbpanel 以库的形式链接 sing-box（GPL-3.0-or-later），并在 `internal/node/hot/` 中包含修改过的 sing-box 源码，因此**分发二进制时整个项目须遵守 GPL-3.0-or-later**。

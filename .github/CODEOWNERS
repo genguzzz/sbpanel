@@ -1,0 +1,6 @@
+# Reviews: everything goes to the maintainer; CI, release and install paths most of all.
+*                   @genguzzz
+/.github/           @genguzzz
+/install.sh         @genguzzz
+/deploy/            @genguzzz
+/internal/updater/  @genguzzz
