@@ -50,6 +50,7 @@ while [ $# -gt 0 ]; do
 	*) die "unknown argument: $1" ;;
 	esac
 done
+case "$MIRROR" in "" | https://*) ;; *) die "--mirror must be an https:// URL" ;; esac
 
 # ---- platform ----
 ARCH="$(uname -m)"
@@ -95,29 +96,46 @@ install_deps() {
 	esac
 }
 
+# HTTPS only, redirects included: the archive is only as trustworthy as checksums.txt,
+# which comes over the same connection
+fetch() { curl --proto '=https' --proto-redir '=https' "$@"; }
+
+# vX.Y.Z[-pre]: it ends up in URLs and paths
+valid_version() {
+	case "$1" in v[0-9]*.[0-9]*.[0-9]*) ;; *) return 1 ;; esac
+	case "$1" in *[!0-9A-Za-z.-]*) return 1 ;; esac
+}
+
 sha256() { if need sha256sum; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi; }
 
 latest_version() {
 	# the releases/latest redirect avoids the API rate limit
-	url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "${MIRROR}https://github.com/$REPO/releases/latest") || return 1
-	echo "${url##*/}"
+	url=$(fetch -fsSLI -o /dev/null -w '%{url_effective}' "${MIRROR}https://github.com/$REPO/releases/latest") || return 1
+	v="${url##*/}"
+	valid_version "$v" || return 1
+	echo "$v"
 }
 
 download() {
 	install_deps
 	[ -n "$SBP_VERSION" ] || SBP_VERSION="$(latest_version)" || die "cannot determine the latest release"
-	case "$SBP_VERSION" in v*) ;; *) die "bad version: $SBP_VERSION" ;; esac
+	valid_version "$SBP_VERSION" || die "bad version: $SBP_VERSION (want vX.Y.Z)"
 	name="sbpanel_${SBP_VERSION}_linux_${ARCH}.tar.gz"
 	base="${MIRROR}https://github.com/$REPO/releases/download/$SBP_VERSION"
 	TMP="$(mktemp -d)"
 	trap 'rm -rf "$TMP"' EXIT
 	say "downloading sbpanel $SBP_VERSION ($ARCH)"
-	curl -fL --retry 3 -o "$TMP/$name" "$base/$name" || die "download failed: $base/$name"
-	curl -fsSL --retry 3 -o "$TMP/checksums.txt" "$base/checksums.txt" || die "cannot download checksums"
+	fetch -fL --retry 3 -o "$TMP/$name" "$base/$name" || die "download failed: $base/$name"
+	fetch -fsSL --retry 3 -o "$TMP/checksums.txt" "$base/checksums.txt" || die "cannot download checksums"
 	want="$(grep " $name\$" "$TMP/checksums.txt" | cut -d' ' -f1)"
 	[ -n "$want" ] && [ "$want" = "$(sha256 "$TMP/$name")" ] || die "checksum mismatch for $name"
-	tar -xzf "$TMP/$name" -C "$TMP"
-	PKG="$TMP/sbpanel_${SBP_VERSION}_linux_${ARCH}"
+	PKG="sbpanel_${SBP_VERSION}_linux_${ARCH}"
+	# only the two binaries: nothing else in the archive is used, and nothing else gets written
+	tar -xzf "$TMP/$name" -C "$TMP" "$PKG/sbmaster" "$PKG/sbnode" || die "cannot unpack $name"
+	for b in sbmaster sbnode; do
+		[ -f "$TMP/$PKG/$b" ] && [ ! -L "$TMP/$PKG/$b" ] || die "$name: $b is not a regular file"
+	done
+	PKG="$TMP/$PKG"
 }
 
 systemd_version() { systemctl --version 2>/dev/null | awk 'NR==1{print $2}'; }
@@ -177,6 +195,15 @@ EOF
 
 svc() { if [ "$INIT" = systemd ]; then systemctl "$1" "$2"; else rc-service "$2" "$1"; fi; }
 
+# env_line NAME VALUE: one single-quoted assignment. The file is read by systemd and sourced by
+# sh (OpenRC's start_pre, this script), so an unquoted value such as a password with $(...),
+# ; or a space would run as a command as root.
+env_line() {
+	case "$2" in *"'"* | *'
+'*) die "$1 must not contain a single quote or a newline" ;; esac
+	printf "%s='%s'\n" "$1" "$2"
+}
+
 install_master() {
 	download
 	install -m 0755 "$PKG/sbmaster" "$BIN_DIR/sbmaster"
@@ -184,12 +211,13 @@ install_master() {
 	if [ ! -f /etc/sbmaster.env ]; then
 		umask 077
 		{
-			echo "SBM_WEB=$WEB"
-			echo "SBM_GRPC=$GRPC"
-			echo "SBM_PUBLIC_GRPC=$PUBLIC_GRPC"
-			echo "SBM_TZ=$TZ_ARG"
-			[ -n "$ADMIN_PW" ] && echo "SBM_ADMIN_PASSWORD=$ADMIN_PW"
-		} >/etc/sbmaster.env
+			env_line SBM_WEB "$WEB"
+			env_line SBM_GRPC "$GRPC"
+			env_line SBM_PUBLIC_GRPC "$PUBLIC_GRPC"
+			env_line SBM_TZ "$TZ_ARG"
+			if [ -n "$ADMIN_PW" ]; then env_line SBM_ADMIN_PASSWORD "$ADMIN_PW"; fi
+		} >"$TMP/sbmaster.env"
+		install -m 0600 "$TMP/sbmaster.env" /etc/sbmaster.env
 	fi
 	write_unit sbmaster "sbpanel master" "$BIN_DIR/sbmaster --data /var/lib/sbmaster" /var/lib/sbmaster /etc/sbmaster.env
 	sleep 2
