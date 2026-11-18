@@ -2305,8 +2305,11 @@ type UserPolicy struct {
 	// in those inbounds' user lists (subscriptions keep working); the node refuses their new
 	// connections there and closes the open ones.
 	BlockedInbounds []string `protobuf:"bytes,5,rep,name=blocked_inbounds,json=blockedInbounds,proto3" json:"blocked_inbounds,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// At the device limit, a connection from a new IP drops the IP that has been connected
+	// the longest instead of being refused. Older nodes ignore it and keep refusing.
+	KickOldest    bool `protobuf:"varint,6,opt,name=kick_oldest,json=kickOldest,proto3" json:"kick_oldest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UserPolicy) Reset() {
@@ -2372,6 +2375,13 @@ func (x *UserPolicy) GetBlockedInbounds() []string {
 		return x.BlockedInbounds
 	}
 	return nil
+}
+
+func (x *UserPolicy) GetKickOldest() bool {
+	if x != nil {
+		return x.KickOldest
+	}
+	return false
 }
 
 type InboundSpec struct {
@@ -3006,7 +3016,7 @@ const file_node_v1_node_proto_rawDesc = "" +
 	"\x04sans\x18\x05 \x03(\tR\x04sans\x12\x16\n" +
 	"\x06issuer\x18\x06 \x01(\tR\x06issuer\x12 \n" +
 	"\vfingerprint\x18\a \x01(\tR\vfingerprint\x12\x14\n" +
-	"\x05error\x18\b \x01(\tR\x05error\"\xa8\x01\n" +
+	"\x05error\x18\b \x01(\tR\x05error\"\xc9\x01\n" +
 	"\n" +
 	"UserPolicy\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12\x19\n" +
@@ -3014,7 +3024,9 @@ const file_node_v1_node_proto_rawDesc = "" +
 	"\n" +
 	"speed_down\x18\x03 \x01(\x03R\tspeedDown\x12!\n" +
 	"\fdevice_limit\x18\x04 \x01(\x05R\vdeviceLimit\x12)\n" +
-	"\x10blocked_inbounds\x18\x05 \x03(\tR\x0fblockedInbounds\"\x96\x02\n" +
+	"\x10blocked_inbounds\x18\x05 \x03(\tR\x0fblockedInbounds\x12\x1f\n" +
+	"\vkick_oldest\x18\x06 \x01(\bR\n" +
+	"kickOldest\"\x96\x02\n" +
 	"\vInboundSpec\x12\x10\n" +
 	"\x03tag\x18\x01 \x01(\tR\x03tag\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12!\n" +

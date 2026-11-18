@@ -163,6 +163,7 @@ func buildSpec(db *sql.DB, nodeID string) (*pb.NodeSpec, error) {
 	rows.Close()
 
 	policies := map[int64]*pb.UserPolicy{}
+	kickOldest := settingOr(db, "device_policy", "reject") == "kick_oldest"
 	for _, in := range ins {
 		var users []specUser
 		urows, err := db.Query(`SELECT DISTINCT u.id, u.uuid, u.password, u.flow, u.speed_up, u.speed_down, u.device_limit
@@ -177,7 +178,7 @@ func buildSpec(db *sql.DB, nodeID string) (*pb.NodeSpec, error) {
 			urows.Scan(&u.ID, &u.UUID, &u.Password, &u.Flow, &su, &sd, &dl)
 			users = append(users, u)
 			if su > 0 || sd > 0 || dl > 0 {
-				policies[u.ID] = &pb.UserPolicy{User: strconv.FormatInt(u.ID, 10), SpeedUp: su, SpeedDown: sd, DeviceLimit: int32(dl)}
+				policies[u.ID] = &pb.UserPolicy{User: strconv.FormatInt(u.ID, 10), SpeedUp: su, SpeedDown: sd, DeviceLimit: int32(dl), KickOldest: kickOldest && dl > 0}
 			}
 		}
 		urows.Close()
@@ -271,6 +272,9 @@ func specHash(s *pb.NodeSpec) string {
 	}
 	for _, p := range s.Policies {
 		parts = append(parts, []byte(fmt.Sprintf("%s/%d/%d/%d/%s", p.User, p.SpeedUp, p.SpeedDown, p.DeviceLimit, strings.Join(p.BlockedInbounds, ","))))
+		if p.KickOldest { // appended only when set, so existing specs keep their hash
+			parts = append(parts, []byte("kick_oldest"))
+		}
 	}
 	for _, c := range s.Certs {
 		parts = append(parts, []byte("cert:"+c.Id+"/"+c.Hash))
