@@ -209,9 +209,9 @@ export type NodeUpgradeStatus = {
   state?: 'downloading' | 'applying' | 'upgraded' | 'rolled_back' | 'failed'; from?: string; to?: string; error?: string
   started?: number; finished?: number; can_rollback?: boolean; rollback?: boolean
 }
-export type NodeUpdate = { id: string; name: string; online: boolean; version: string; arch: string; release: boolean; supported: boolean; has_update: boolean; status?: NodeUpgradeStatus; job?: UpgradeJob }
+export type NodeUpdate = { id: string; name: string; online: boolean; version: string; arch: string; release: boolean; supported: boolean; container?: boolean; has_update: boolean; status?: NodeUpgradeStatus; job?: UpgradeJob }
 export type UpdateState = {
   current: string; release: boolean; latest: Release | null; has_update: boolean; checked_at: number; check_error?: string; check_enabled: boolean; mirror: string
-  supported: boolean; unsupported?: string; running: boolean; job?: UpgradeJob; last?: UpgradeResult; can_rollback: boolean
+  supported: boolean; unsupported?: string; container?: boolean; running: boolean; job?: UpgradeJob; last?: UpgradeResult; can_rollback: boolean
   nodes: NodeUpdate[]
 }

@@ -89,6 +89,20 @@ sbmaster upgrade                 # latest release; --version vX.Y.Z, --rollback,
 sbnode upgrade
 ```
 
+**Docker**: `ghcr.io/genguzzz/sbpanel` (amd64 / arm64) is a small runtime image without sbpanel binaries. On every start it downloads the release named by `SBP_VERSION` (default `latest`; or e.g. `v0.4.0`), verifies it against `checksums.txt` and caches it in the data volume, so a container also starts when GitHub is unreachable. `SBP_MIRROR=https://<your-github-proxy>/` routes the download through a proxy. Ready-made compose file: [deploy/docker/compose.yml](deploy/docker/compose.yml).
+```bash
+# panel: web UI on 127.0.0.1:8080 (put an HTTPS proxy in front), nodes connect to 9443
+docker run -d --name sbmaster --restart unless-stopped -p 127.0.0.1:8080:8080 -p 9443:9443 \
+  -e SBM_PUBLIC_GRPC=panel.example.com:9443 -v sbmaster:/var/lib/sbmaster ghcr.io/genguzzz/sbpanel
+docker logs sbmaster | grep -i password      # initial admin password (or set SBM_ADMIN_PASSWORD)
+
+# node: host networking, so the inbounds the panel assigns are reachable; enrolls on the first start
+docker run -d --name sbnode --restart unless-stopped --network host --cap-add NET_ADMIN \
+  -e SBN_MASTER=panel.example.com:9443 -e SBN_TOKEN=<one-time-token> -e SBN_CA_SHA256=<ca-fingerprint> \
+  -v sbnode:/var/lib/sbnode ghcr.io/genguzzz/sbpanel node
+```
+Upgrade a container by restarting it (`docker restart sbmaster`); with a pinned `SBP_VERSION`, change it and recreate the container. The panel shows that instead of its one-click upgrade. Other commands run as is, e.g. `docker exec -it sbmaster sbmaster reset-admin --user admin --password -`.
+
 **Admin account recovery**
 ```bash
 sbmaster reset-admin --user admin --password -            # reads the new password from stdin

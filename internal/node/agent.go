@@ -380,7 +380,7 @@ func (a *Agent) session(ctx context.Context) error {
 	hostname, _ := os.Hostname()
 	if err := send(&pb.NodeMsg{M: &pb.NodeMsg_Hello{Hello: &pb.Hello{
 		Version: Version, SingboxVersion: SingboxVersion(), AppliedRevision: a.applied.Load(),
-		Hostname: hostname, Os: runtime.GOOS, Arch: runtime.GOARCH, BootId: a.bootID, Features: []string{"upgrade"},
+		Hostname: hostname, Os: runtime.GOOS, Arch: runtime.GOARCH, BootId: a.bootID, Features: features(),
 	}}}); err != nil {
 		return err
 	}

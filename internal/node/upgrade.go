@@ -158,3 +158,12 @@ func or(a, b string) string {
 	}
 	return b
 }
+
+// features advertised in Hello: "upgrade" (the panel can swap the binary) or "container"
+// (the node runs in a container; restarting it fetches the new release).
+func features() []string {
+	if updater.InContainer() {
+		return []string{"container"}
+	}
+	return []string{"upgrade"}
+}

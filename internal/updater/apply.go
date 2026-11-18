@@ -44,7 +44,22 @@ const (
 var (
 	ErrBusy        = errors.New("an upgrade is already running")
 	ErrUnsupported = errors.New("not running as a systemd or OpenRC service; upgrade with install.sh")
+	ErrContainer   = errors.New("running in a container; restart it to fetch the latest release (or the one in SBP_VERSION)")
 )
+
+// InContainer reports a Docker / Podman container. Its entrypoint fetches the release on every
+// start, so a restart is the upgrade and the panel's binary swap doesn't apply.
+func InContainer() bool {
+	if os.Getenv("SBP_CONTAINER") == "1" {
+		return true
+	}
+	for _, f := range []string{"/.dockerenv", "/run/.containerenv"} {
+		if _, err := os.Stat(f); err == nil {
+			return true
+		}
+	}
+	return false
+}
 
 // Plan describes one upgrade. Start writes it; the helper executes it.
 type Plan struct {
@@ -158,6 +173,9 @@ func Executable() (string, error) {
 
 // Detect finds the service manager and the unit the current process runs as.
 func Detect(def string) (service, init string, err error) {
+	if InContainer() {
+		return "", "", ErrContainer
+	}
 	if st, e := os.Stat("/run/systemd/system"); e == nil && st.IsDir() {
 		if _, e := exec.LookPath("systemd-run"); e != nil {
 			return "", "", fmt.Errorf("%w (systemd-run not found)", ErrUnsupported)

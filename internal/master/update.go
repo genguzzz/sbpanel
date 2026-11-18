@@ -240,6 +240,7 @@ type nodeUpdate struct {
 	Arch      string            `json:"arch"`
 	Release   bool              `json:"release"`   // runs a published release (not a dev build)
 	Supported bool              `json:"supported"` // can be upgraded from the panel
+	Container bool              `json:"container"` // runs in a container: restart it to upgrade
 	HasUpdate bool              `json:"has_update"`
 	Status    *pb.UpgradeStatus `json:"status,omitempty"` // last result / progress reported by the node
 	Job       *job              `json:"job,omitempty"`    // what the master is doing for it
@@ -257,6 +258,7 @@ type updateOut struct {
 	// the panel itself
 	Supported   bool            `json:"supported"`
 	Unsupported string          `json:"unsupported,omitempty"`
+	Container   bool            `json:"container"` // upgrade by restarting the container
 	Running     bool            `json:"running"`
 	Job         *job            `json:"job,omitempty"`
 	Last        *updater.Result `json:"last,omitempty"`
@@ -291,6 +293,7 @@ func (m *Master) updateState() updateOut {
 	out.Mirror = settingOr(m.db, "update_mirror", "")
 	if _, _, err := DetectService("sbmaster"); err != nil {
 		out.Unsupported = err.Error()
+		out.Container = errors.Is(err, updater.ErrContainer)
 	} else {
 		out.Supported = true
 	}
@@ -310,6 +313,7 @@ func (m *Master) updateState() updateOut {
 			if h, _, _, _ := s.snapshot(); h != nil {
 				x.Version, x.Arch = h.Version, h.Arch
 				x.Supported = slices.Contains(h.Features, "upgrade")
+				x.Container = slices.Contains(h.Features, "container")
 			}
 		}
 		x.HasUpdate = newer(out.Latest, x.Version)

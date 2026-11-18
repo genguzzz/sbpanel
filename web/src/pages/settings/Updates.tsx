@@ -9,6 +9,7 @@ import { C } from '../../i18n/common'
 import { U } from '../../i18n/updates'
 
 const INSTALL_UPGRADE = 'curl -fsSL https://raw.githubusercontent.com/genguzzz/sbpanel/main/install.sh | sh -s -- upgrade master'
+const DOCKER_UPGRADE = 'docker restart sbmaster'
 
 export const updateQuery = (busy: boolean) => ({
   queryKey: ['update'],
@@ -114,8 +115,8 @@ export function UpdatesSettings() {
           {!d.supported ? (
             <Callout tone="warn">
               <div className="font-medium">{t.unsupported}</div>
-              <div className="mt-1 text-[13px]">{t.unsupportedHint}</div>
-              <CopyText text={INSTALL_UPGRADE} className="mt-2" />
+              <div className="mt-1 text-[13px]">{d.container ? t.containerHint : t.unsupportedHint}</div>
+              <CopyText text={d.container ? DOCKER_UPGRADE : INSTALL_UPGRADE} className="mt-2" />
             </Callout>
           ) : (offer || d.can_rollback) && (
             <div className="flex flex-wrap gap-2">
@@ -249,6 +250,6 @@ function NodeStatus({ n }: { n: NodeUpdate }) {
       </div>
     )
   }
-  if (!n.supported) return <span className="text-xs text-muted">{t.needsInstall}</span>
+  if (!n.supported) return <span className="text-xs text-muted">{n.container ? t.needsPull : t.needsInstall}</span>
   return <span className="text-muted">—</span>
 }

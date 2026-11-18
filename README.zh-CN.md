@@ -89,6 +89,20 @@ sbmaster upgrade                 # 最新版本；可加 --version vX.Y.Z、--ro
 sbnode upgrade
 ```
 
+**Docker**：`ghcr.io/genguzzz/sbpanel`（amd64 / arm64）是一个不含 sbpanel 程序的小型运行环境镜像。每次启动时按 `SBP_VERSION`（默认 `latest`，也可写 `v0.4.0` 这样的版本）下载发布包，用 `checksums.txt` 校验后缓存在数据卷里，所以 GitHub 不通时容器也能启动。`SBP_MIRROR=https://<你的 GitHub 代理>/` 可让下载走代理。现成的 compose 文件见 [deploy/docker/compose.yml](deploy/docker/compose.yml)。
+```bash
+# 面板：Web 界面在 127.0.0.1:8080（前面加 HTTPS 反代），节点连接 9443
+docker run -d --name sbmaster --restart unless-stopped -p 127.0.0.1:8080:8080 -p 9443:9443 \
+  -e SBM_PUBLIC_GRPC=panel.example.com:9443 -v sbmaster:/var/lib/sbmaster ghcr.io/genguzzz/sbpanel
+docker logs sbmaster | grep -i password      # 初始管理员密码（也可用 SBM_ADMIN_PASSWORD 指定）
+
+# 节点：使用主机网络，面板分配的入站端口才能直接访问；首次启动时自动注册
+docker run -d --name sbnode --restart unless-stopped --network host --cap-add NET_ADMIN \
+  -e SBN_MASTER=panel.example.com:9443 -e SBN_TOKEN=<一次性令牌> -e SBN_CA_SHA256=<CA 指纹> \
+  -v sbnode:/var/lib/sbnode ghcr.io/genguzzz/sbpanel node
+```
+重启容器即可升级（`docker restart sbmaster`）；若固定了 `SBP_VERSION`，修改后重建容器。面板会显示这条命令而不是一键升级。其他命令可直接执行，如 `docker exec -it sbmaster sbmaster reset-admin --user admin --password -`。
+
 **找回管理员账号**
 ```bash
 sbmaster reset-admin --user admin --password -                  # 从标准输入读取新密码

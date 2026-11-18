@@ -27,6 +27,9 @@ type CLI struct {
 func (c CLI) Run(ctx context.Context, say func(string, ...any)) (*Result, error) {
 	service := or(c.Service, c.Binary)
 	initSys := ""
+	if InContainer() {
+		return nil, ErrContainer
+	}
 	if st, err := os.Stat("/run/systemd/system"); err == nil && st.IsDir() {
 		initSys = "systemd"
 	} else if _, err := exec.LookPath("rc-service"); err == nil {
