@@ -535,14 +535,15 @@ func (m *Master) apiSaveSettings(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case "update_mirror":
-			// the mirror serves both the release archive and its checksums.txt, so whoever sets it
-			// chooses the binary the next upgrade installs (as root): admin only
+			// the mirror serves the release archive (and checksums.txt when github.com is
+			// unreachable), so whoever sets it can influence what the next upgrade installs as
+			// root: admin only, and HTTPS only, like the updater requires
 			if p := principalFrom(r); p != nil && !p.can(ScopeAdmin) && v != settingOr(m.db, k, "") {
 				writeErrf(w, http.StatusForbidden, "Permission denied: requires the %s scope", ScopeAdmin)
 				return
 			}
-			if v != "" && (!(strings.HasPrefix(v, "https://") || strings.HasPrefix(v, "http://")) || !strings.HasSuffix(v, "/") || len(v) > 300) {
-				writeErr(w, 400, "The update mirror must be an http(s) URL ending in /, e.g. https://ghfast.top/")
+			if v != "" && (!strings.HasPrefix(v, "https://") || !strings.HasSuffix(v, "/") || len(v) > 300) {
+				writeErr(w, 400, "The update mirror must be an https:// URL ending in /, e.g. https://ghfast.top/")
 				return
 			}
 		case "webhook_url":

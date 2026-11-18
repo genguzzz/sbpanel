@@ -40,6 +40,9 @@ func TestUpdateMirrorNeedsAdmin(t *testing.T) {
 	if w := call(h, "PUT", "/api/settings", map[string]string{"update_mirror": "javascript:x"}, bearer(admin)); w.Code != 400 {
 		t.Fatalf("bad mirror accepted: %d", w.Code)
 	}
+	if w := call(h, "PUT", "/api/settings", map[string]string{"update_mirror": "http://ghfast.top/"}, bearer(admin)); w.Code != 400 {
+		t.Fatalf("plain-HTTP mirror: %d", w.Code)
+	}
 	if w := call(h, "PUT", "/api/settings", map[string]string{"update_mirror": "https://ghfast.top/"}, bearer(admin)); w.Code != 200 {
 		t.Fatalf("admin mirror: %d %s", w.Code, w.Body)
 	}

@@ -315,7 +315,7 @@ var zhCatalog = map[string]string{
 	"The rule mirror prefix must be an http(s) URL ending in /, e.g. https://ghfast.top/":                                         "规则镜像前缀需是以 / 结尾的 http(s) 地址，例如 https://ghfast.top/",
 	"The slug may contain lowercase letters, digits and - (up to 32 characters)":                                                  "标识只能包含小写字母、数字和 -，最长 32 位",
 	"The subscription URL must start with http:// or https://":                                                                    "订阅地址需以 http:// 或 https:// 开头",
-	"The update mirror must be an http(s) URL ending in /, e.g. https://ghfast.top/":                                              "更新镜像需是以 / 结尾的 http(s) 地址，例如 https://ghfast.top/",
+	"The update mirror must be an https:// URL ending in /, e.g. https://ghfast.top/":                                             "更新镜像需是以 / 结尾的 https:// 地址，例如 https://ghfast.top/",
 	"The webhook URL must start with http:// or https://":                                                                         "Webhook 地址需以 http:// 或 https:// 开头",
 	"The target group of rule %s was hidden; using the fallback %s":                                                               "规则 %s 的目标分组被隐藏，改走兜底 %s",
 	"The token can't access zone %s":                                                                                              "令牌无权访问区域 %s",

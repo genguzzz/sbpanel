@@ -10,3 +10,4 @@ web/*.tsbuildinfo
 /xmon/
 /s-ui/
 /dist/
+/.claude/worktrees/
