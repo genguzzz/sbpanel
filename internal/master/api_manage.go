@@ -134,9 +134,27 @@ func (m *Master) enrollInfo(r *http.Request, nodeID string) (map[string]any, err
 		_, port, _ := net.SplitHostPort(m.cfg.GRPCListen)
 		addr = net.JoinHostPort(host, port)
 	}
+	if !shellSafeAddr(addr) {
+		// the command is pasted into a root shell on the new node: never echo shell syntax
+		// from a request header (or a mistyped flag) into it
+		addr = "MASTER_HOST:PORT"
+	}
 	cmd := fmt.Sprintf("sbnode enroll --master %s --token %s --ca-sha256 %s", addr, token, m.CAFingerprint())
 	return map[string]any{"node_id": nodeID, "token": token, "expires_at": exp.Unix(), "master": addr,
 		"ca_sha256": m.CAFingerprint(), "command": cmd}, nil
+}
+
+// shellSafeAddr accepts host:port made of host-name / IP characters only.
+func shellSafeAddr(s string) bool {
+	if s == "" || len(s) > 300 {
+		return false
+	}
+	for _, c := range s {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.ContainsRune(".-:[]_", c)) {
+			return false
+		}
+	}
+	return true
 }
 
 func (m *Master) apiCreateNode(w http.ResponseWriter, r *http.Request) {

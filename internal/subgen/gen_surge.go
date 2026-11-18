@@ -98,7 +98,8 @@ func (e Endpoint) surgeProxy() string {
 	if len(kv) > 0 {
 		s += ", " + strings.Join(kv, ", ")
 	}
-	return s
+	// Surge profiles are line-based: a line break in any value would start a new config line
+	return strings.NewReplacer("\r", "", "\n", "").Replace(s)
 }
 
 var surgeType = map[string]string{"domain": "DOMAIN", "domain_suffix": "DOMAIN-SUFFIX", "domain_keyword": "DOMAIN-KEYWORD",

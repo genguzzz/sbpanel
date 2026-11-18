@@ -195,16 +195,38 @@ func (h *Hub) Serve(ln net.Listener, ca *pki.CA) error {
 		grpc.MaxConcurrentStreams(256),
 		// Enroll is reachable without a client certificate: rate-limit it before the
 		// (up to 64 MB) message is read, so anonymous callers can't exhaust memory
-		grpc.InTapHandle(func(ctx context.Context, info *tap.Info) (context.Context, error) {
-			if info.FullMethodName == pb.Enroll_Enroll_FullMethodName && !h.enrollRate.Allow() {
-				return nil, status.Error(codes.ResourceExhausted, "too many enrollment attempts")
-			}
-			return ctx, nil
-		}),
+		grpc.InTapHandle(h.tap),
 	)
 	pb.RegisterEnrollServer(h.srv, h)
 	pb.RegisterNodeHubServer(h.srv, h)
 	return h.srv.Serve(ln)
+}
+
+// tap runs before a call's message is read. Enroll is reachable without a client certificate:
+// rate-limit it, so anonymous callers can't exhaust memory with (up to 64 MB) messages. Every
+// other method needs a CA-verified client certificate; the interceptors then check it is the
+// node's current one. Unary interceptors only run after the message is decoded, so without
+// this an anonymous caller could make the master buffer 64 MB per call, unthrottled.
+func (h *Hub) tap(ctx context.Context, info *tap.Info) (context.Context, error) {
+	if info.FullMethodName == pb.Enroll_Enroll_FullMethodName {
+		if !h.enrollRate.Allow() {
+			return nil, status.Error(codes.ResourceExhausted, "too many enrollment attempts")
+		}
+		return ctx, nil
+	}
+	if !hasVerifiedClientCert(ctx) {
+		return nil, status.Error(codes.Unauthenticated, "client certificate required")
+	}
+	return ctx, nil
+}
+
+func hasVerifiedClientCert(ctx context.Context) bool {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return false
+	}
+	ti, ok := p.AuthInfo.(credentials.TLSInfo)
+	return ok && len(ti.State.VerifiedChains) > 0 && len(ti.State.VerifiedChains[0]) > 0
 }
 
 func (h *Hub) Stop() {

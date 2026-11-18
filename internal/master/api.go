@@ -234,6 +234,13 @@ func rejectOpaqueOrigin(h http.Handler) http.Handler {
 				writeErr(w, http.StatusForbidden, "forbidden origin")
 				return
 			}
+			// SameSite=Strict still sends the cookie from sibling subdomains (same-site is not
+			// same-origin); browsers label such requests, API clients with a bearer key don't.
+			if fs := r.Header.Get("Sec-Fetch-Site"); (fs == "cross-site" || fs == "same-site") &&
+				strings.HasPrefix(r.URL.Path, "/api/") && r.Header.Get("Authorization") == "" {
+				writeErr(w, http.StatusForbidden, "forbidden origin")
+				return
+			}
 		}
 		h.ServeHTTP(w, r)
 	})
@@ -354,6 +361,17 @@ func qInt(r *http.Request, k string, d int64) int64 {
 	return d
 }
 
+// maxListLimit caps ?limit= on log listings; SQLite treats a negative LIMIT as "no limit".
+const maxListLimit = 5000
+
+// qLimit reads ?limit=, falling back to d when it is missing or outside 1..maxListLimit.
+func qLimit(r *http.Request, d int64) int64 {
+	if v := qInt(r, "limit", d); v >= 1 && v <= maxListLimit {
+		return v
+	}
+	return d
+}
+
 func pathID(r *http.Request) (int64, error) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -380,7 +398,7 @@ func scanRows[T any](m *Master, q string, args []any, fn func(scan func(...any) 
 }
 
 func (m *Master) apiEvents(w http.ResponseWriter, r *http.Request) {
-	limit := qInt(r, "limit", 100)
+	limit := qLimit(r, 100)
 	type ev struct {
 		TS     int64  `json:"ts"`
 		Kind   string `json:"kind"`
