@@ -20,10 +20,23 @@ arch() {
 	esac
 }
 
+# HTTPS only, redirects included: the archive is only as trustworthy as checksums.txt,
+# which comes over the same connection
+dl() { curl --proto '=https' --proto-redir '=https' "$@"; }
+
+# vX.Y.Z[-pre]: it ends up in URLs and paths
+valid_version() {
+	case "$1" in v[0-9]*.[0-9]*.[0-9]*) ;; *) return 1 ;; esac
+	case "$1" in *[!0-9A-Za-z.-]*) return 1 ;; esac
+}
+
+case "${SBP_MIRROR:-}" in "" | https://*) ;; *) die "SBP_MIRROR must be an https:// URL" ;; esac
+
 latest() {
-	url=$(curl -fsSLI --retry 2 -o /dev/null -w '%{url_effective}' "${SBP_MIRROR:-}https://github.com/$REPO/releases/latest") || return 1
+	url=$(dl -fsSLI --retry 2 -o /dev/null -w '%{url_effective}' "${SBP_MIRROR:-}https://github.com/$REPO/releases/latest") || return 1
 	tag="${url##*/}"
-	case "$tag" in v[0-9]*) echo "$tag" ;; *) return 1 ;; esac
+	valid_version "$tag" || return 1
+	echo "$tag"
 }
 
 # fetch NAME DATADIR: make sure <data>/bin/NAME is the wanted release
@@ -39,14 +52,14 @@ fetch() {
 			return 0
 		fi
 	fi
-	case "$want" in v[0-9]*) ;; *) die "bad SBP_VERSION: $want" ;; esac
+	valid_version "$want" || die "bad SBP_VERSION: $want (want vX.Y.Z or latest)"
 	[ "$have" = "$want" ] && { say "$name $want (cached)"; return 0; }
 	a="$(arch)"; pkg="sbpanel_${want}_linux_${a}"
 	base="${SBP_MIRROR:-}https://github.com/$REPO/releases/download/$want"
 	tmp="$(mktemp -d "$bin/.dl.XXXXXX")"
 	say "downloading $name $want ($a)"
-	if ! curl -fsSL --retry 3 -o "$tmp/$pkg.tar.gz" "$base/$pkg.tar.gz" ||
-		! curl -fsSL --retry 3 -o "$tmp/checksums.txt" "$base/checksums.txt"; then
+	if ! dl -fsSL --retry 3 -o "$tmp/$pkg.tar.gz" "$base/$pkg.tar.gz" ||
+		! dl -fsSL --retry 3 -o "$tmp/checksums.txt" "$base/checksums.txt"; then
 		rm -rf "$tmp"
 		[ -n "$have" ] || die "download failed: $base/$pkg.tar.gz"
 		say "download failed; running the cached $name $have"
@@ -55,6 +68,7 @@ fetch() {
 	sum="$(grep " $pkg.tar.gz\$" "$tmp/checksums.txt" | cut -d' ' -f1)"
 	[ -n "$sum" ] && [ "$sum" = "$(sha256sum "$tmp/$pkg.tar.gz" | cut -d' ' -f1)" ] || { rm -rf "$tmp"; die "checksum mismatch for $pkg.tar.gz"; }
 	tar -xzf "$tmp/$pkg.tar.gz" -C "$tmp" "$pkg/$name"
+	[ -f "$tmp/$pkg/$name" ] && [ ! -L "$tmp/$pkg/$name" ] || { rm -rf "$tmp"; die "$pkg.tar.gz: $name is not a regular file"; }
 	chmod 0755 "$tmp/$pkg/$name"
 	[ -n "$have" ] && cp -p "$bin/$name" "$bin/$name.prev"
 	mv -f "$tmp/$pkg/$name" "$bin/$name"
