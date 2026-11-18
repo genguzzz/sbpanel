@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"sbpanel/internal/master"
 	"sbpanel/internal/node"
 	"sbpanel/internal/updater"
 )
@@ -89,7 +90,11 @@ func TestNodeUpgradeFromPanel(t *testing.T) {
 		plan, staged = &p, b
 		return err
 	}
-	t.Cleanup(func() { node.DetectService, node.StartUpgrade = updater.Detect, updater.Start })
+	// whether the test runs inside a systemd service depends on the machine (CI runners do)
+	master.DetectService = func(string) (string, string, error) { return "", "", updater.ErrUnsupported }
+	t.Cleanup(func() {
+		node.DetectService, node.StartUpgrade, master.DetectService = updater.Detect, updater.Start, updater.Detect
+	})
 
 	e := newEnv(t)
 	var st updateState
@@ -101,7 +106,7 @@ func TestNodeUpgradeFromPanel(t *testing.T) {
 	if len(st.Nodes) != 1 || !st.Nodes[0].Supported {
 		t.Fatalf("node: %+v", st.Nodes)
 	}
-	// not a systemd service here: the panel can't upgrade itself, and says so
+	// not running as a service: the panel can't upgrade itself, and says so
 	if st.Supported {
 		t.Fatal("panel claims it can self-upgrade outside a service manager")
 	}

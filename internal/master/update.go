@@ -53,6 +53,9 @@ type updates struct {
 	fetchMu   sync.Mutex // one release download at a time
 }
 
+// DetectService finds the service manager this panel runs under (a test hook).
+var DetectService = updater.Detect
+
 func newUpdates() *updates {
 	return &updates{nodeJobs: map[string]*job{}, nodeStat: map[string]*pb.UpgradeStatus{}}
 }
@@ -286,7 +289,7 @@ func (m *Master) updateState() updateOut {
 	out.Release = updater.ValidTag(Version)
 	out.CheckEnabled = m.updateCheckEnabled()
 	out.Mirror = settingOr(m.db, "update_mirror", "")
-	if _, _, err := updater.Detect("sbmaster"); err != nil {
+	if _, _, err := DetectService("sbmaster"); err != nil {
 		out.Unsupported = err.Error()
 	} else {
 		out.Supported = true
@@ -368,7 +371,7 @@ func (m *Master) apiUpdateMaster(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, fmt.Sprintf("bad version %q", req.Version))
 		return
 	}
-	service, initSys, err := updater.Detect("sbmaster")
+	service, initSys, err := DetectService("sbmaster")
 	if err != nil {
 		writeErr(w, 409, err.Error())
 		return
