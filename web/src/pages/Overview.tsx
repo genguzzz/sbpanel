@@ -63,7 +63,7 @@ export function OverviewPage() {
         </Card>
         <Card title={t.topDomains}>
           <ShareList mono rows={(o?.top_domains ?? []).map((r) => ({ key: r.key, label: r.label, value: r.up + r.down }))}
-            onSelect={(k) => go('traffic', { dim: 'domain', q: k })} emptyText={t.noDomains} />
+            onSelect={(k) => go('traffic', { domain: k })} emptyText={t.noDomains} />
         </Card>
         <Card title={t.outbounds}>
           <ShareList rows={(o?.top_outbounds ?? []).map((r) => ({ key: r.key, label: r.label, value: r.up + r.down }))} emptyText={t.noOutbounds} />

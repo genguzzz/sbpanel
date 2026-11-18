@@ -68,8 +68,15 @@ func qp(name, desc string, schema js) oaParam {
 var trafficQuery = []oaParam{
 	qp("from", "Start time (unix seconds); default 24 hours ago", js{"type": "integer"}),
 	qp("to", "End time (unix seconds); default now", js{"type": "integer"}),
-	qp("user", "Only this user id", js{"type": "integer"}),
-	qp("node", "Only this node id", js{"type": "string"}),
+	qp("user", "Only these user ids (comma-separated)", js{"type": "string"}),
+	qp("node", "Only these node ids (comma-separated)", js{"type": "string"}),
+	qp("inbound", "Only these inbounds, as node_id/tag (comma-separated)", js{"type": "string"}),
+	qp("outbound", "Only these outbound tags (comma-separated)", js{"type": "string"}),
+	qp("domain", "Only these registrable domains, subdomains included (comma-separated; 5-minute data)", js{"type": "string"}),
+	qp("host", "Only these exact hosts (comma-separated; 5-minute data)", js{"type": "string"}),
+	qp("src_ip", "Only these source IPs (comma-separated; 5-minute data)", js{"type": "string"}),
+	qp("port", "Only these destination ports (comma-separated; 5-minute data)", js{"type": "string"}),
+	qp("rule", "Only these routing rules (comma-separated; 5-minute data)", js{"type": "string"}),
 }
 
 var okResp = tObj(js{"ok": tBool("")})
@@ -223,7 +230,7 @@ var apiDocs = map[string]opDoc{
 	"GET /api/traffic/series": {Tag: "traffic", Summary: "Traffic time series", Resp: arr("$Series"),
 		Query: append([]oaParam{
 			qp("step", "Step in seconds", js{"type": "integer", "enum": []int{60, 300, 900, 1800, 3600, 10800, 21600, 86400}, "default": 300}),
-			qp("group", "Split by", js{"type": "string", "enum": []string{"total", "user", "node", "inbound", "outbound"}}),
+			qp("group", "Split by. domain, host, src_ip, port and rule use 5-minute data", js{"type": "string", "enum": []string{"total", "user", "node", "inbound", "outbound", "domain", "host", "src_ip", "port", "rule"}}),
 		}, trafficQuery...)},
 	"GET /api/traffic/top": {Tag: "traffic", Summary: "Traffic ranking", Desc: "The X-Precision response header gives the data precision (1m/5m/1h).", Resp: arr("$TopRow"),
 		Query: append([]oaParam{

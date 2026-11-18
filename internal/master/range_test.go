@@ -84,3 +84,80 @@ func TestMinuteRangeQueries(t *testing.T) {
 		t.Fatal("old range precision")
 	}
 }
+
+// Detail filters (domain, source IP, ...) move series and exact rankings onto the 5-minute
+// dimension tables, combine with AND across keys and OR within one, and series can split by domain.
+func TestDetailFilters(t *testing.T) {
+	m := newTestMaster(t)
+	seedNode(t, m, "n1")
+	seedNode(t, m, "n2")
+	m.db.Exec(`INSERT INTO users(id, username, sub_token, uuid, password, created_at) VALUES(1,'u1','t1','x1','y1',0),(2,'u2','t2','x2','y2',0)`)
+	base := time.Now().Add(-6*time.Hour).Unix() / 3600 * 3600
+	type hit struct {
+		node, user, out, host, src string
+		down                       int64
+	}
+	hits := []hit{
+		{"n1", "1", "direct", "www.a.com", "1.1.1.1", 1000},
+		{"n1", "1", "proxy", "img.a.com", "1.1.1.1", 2000},
+		{"n1", "2", "direct", "b.com", "2.2.2.2", 4000},
+		{"n2", "2", "direct", "xa.com", "2.2.2.2", 8000}, // not a subdomain of a.com
+		{"n2", "1", "direct", "a.com", "1.1.1.1", 16000},
+	}
+	seq := map[string]uint64{}
+	for _, h := range hits {
+		seq[h.node]++
+		rep := &pb.TrafficReport{Seq: seq[h.node], WindowStart: base + int64(seq[h.node])*60,
+			Users: []*pb.UserStat{{User: h.user, Inbound: "in", Outbound: h.out, Down: h.down}},
+			Dims:  []*pb.DimStat{{User: h.user, Inbound: "in", Outbound: h.out, Host: h.host, Port: 443, SrcIp: h.src, Down: h.down}}}
+		if _, err := m.ingest(h.node, rep); err != nil {
+			t.Fatal(err)
+		}
+	}
+	q := "from=" + strconv.FormatInt(base, 10) + "&to=" + strconv.FormatInt(base+3600, 10)
+	top := func(dim, extra string) (map[string]int64, string) {
+		rec := httptest.NewRecorder()
+		m.apiTop(rec, httptest.NewRequest("GET", "/api/traffic/top?dim="+dim+"&"+q+extra, nil))
+		var rows []topRow
+		json.Unmarshal(rec.Body.Bytes(), &rows)
+		out := map[string]int64{}
+		for _, r := range rows {
+			out[r.Key] = r.Down
+		}
+		return out, rec.Header().Get("X-Precision")
+	}
+	if got, p := top("node", "&domain=a.com"); got["n1"] != 3000 || got["n2"] != 16000 || len(got) != 2 || p != "5m" {
+		t.Fatalf("node by domain a.com: %v %s", got, p)
+	}
+	if got, _ := top("domain", "&node=n1&outbound=direct"); got["a.com"] != 1000 || got["b.com"] != 4000 || len(got) != 2 {
+		t.Fatalf("domain by node+outbound: %v", got)
+	}
+	if got, _ := top("user", "&src_ip=2.2.2.2&node=n1,n2"); got["2"] != 12000 || len(got) != 1 {
+		t.Fatalf("user by src_ip: %v", got)
+	}
+	if got, p := top("user", "&node=n1"); got["1"] != 3000 || p != "1m" {
+		t.Fatalf("exact dims stay on minute data: %v %s", got, p)
+	}
+	rec := httptest.NewRecorder()
+	m.apiSeries(rec, httptest.NewRequest("GET", "/api/traffic/series?step=60&group=domain&"+q, nil))
+	var s struct {
+		Step      int64  `json:"step"`
+		Precision string `json:"precision"`
+		Series    []struct {
+			Key  string `json:"key"`
+			Down int64  `json:"down"`
+		} `json:"series"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &s)
+	got := map[string]int64{}
+	for _, x := range s.Series {
+		got[x.Key] = x.Down
+	}
+	if s.Step != 300 || s.Precision != "5m" || got["a.com"] != 19000 || got["b.com"] != 4000 || got["xa.com"] != 8000 {
+		t.Fatalf("series by domain: %s", rec.Body.String())
+	}
+	// the LIKE pattern is escaped: "_" must not match any character
+	if got, _ := top("node", "&domain=a_com"); len(got) != 0 {
+		t.Fatalf("escaped domain: %v", got)
+	}
+}

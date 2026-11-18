@@ -50,30 +50,131 @@ func (m *Master) tzOffset() int64 {
 	return int64(off)
 }
 
-type trafficFilter struct {
-	from, to int64
-	user     int64
-	node     string
+// filterCols maps a filter key to its SQL expression. dimOnly keys exist only in the dimension
+// tables (dim_5m / dim_hour), so filtering on one moves the whole query onto those tables.
+var filterCols = map[string]struct {
+	expr    string
+	dimOnly bool
+	isInt   bool
+}{
+	"user":     {"user_id", false, true},
+	"node":     {"node_id", false, false},
+	"inbound":  {"node_id||'/'||inbound", false, false},
+	"outbound": {"outbound", false, false},
+	"domain":   {"host", true, false}, // registrable domain: the host itself or any subdomain of it
+	"host":     {"host", true, false},
+	"src_ip":   {"src_ip", true, false},
+	"port":     {"port", true, true},
+	"rule":     {"rule", true, false},
+	"network":  {"network", true, false},
 }
 
+// filterOrder keeps the generated SQL stable.
+var filterOrder = []string{"user", "node", "inbound", "outbound", "domain", "host", "src_ip", "port", "rule", "network"}
+
+// maxFilterValues caps how many values one filter key may carry.
+const maxFilterValues = 50
+
+type trafficFilter struct {
+	from, to int64
+	// conds holds the selected values per filter key: OR within a key, AND across keys.
+	conds map[string][]string
+}
+
+// filter reads the time range and every dimension filter. Each key takes one or more values,
+// repeated (?node=a&node=b) or comma-separated (?node=a,b).
 func (m *Master) filter(r *http.Request, defHours int64) trafficFilter {
 	n := now()
-	f := trafficFilter{from: qInt(r, "from", n-defHours*3600), to: qInt(r, "to", n+1), user: qInt(r, "user", 0), node: r.URL.Query().Get("node")}
+	f := trafficFilter{from: qInt(r, "from", n-defHours*3600), to: qInt(r, "to", n+1)}
+	q := r.URL.Query()
+	for _, k := range filterOrder {
+		var vals []string
+		for _, raw := range q[k] {
+			for _, v := range strings.Split(raw, ",") {
+				if v = strings.TrimSpace(v); v == "" {
+					continue
+				}
+				if filterCols[k].isInt {
+					if _, err := strconv.ParseInt(v, 10, 64); err != nil {
+						continue
+					}
+				}
+				vals = append(vals, v)
+			}
+		}
+		if k == "user" && len(vals) == 1 && vals[0] == "0" {
+			vals = nil // user=0 has always meant "all users"
+		}
+		if len(vals) > maxFilterValues {
+			vals = vals[:maxFilterValues]
+		}
+		if len(vals) > 0 {
+			if f.conds == nil {
+				f.conds = map[string][]string{}
+			}
+			f.conds[k] = vals
+		}
+	}
 	return f
 }
+
+// needsDim reports whether the filter uses a column that only the dimension tables have.
+func (f trafficFilter) needsDim() bool {
+	for k := range f.conds {
+		if filterCols[k].dimOnly {
+			return true
+		}
+	}
+	return false
+}
+
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
 func (f trafficFilter) where(tsFrom int64) (string, []any) {
 	w := ` WHERE ts>=? AND ts<?`
 	a := []any{tsFrom, f.to}
-	if f.user > 0 {
-		w += ` AND user_id=?`
-		a = append(a, f.user)
-	}
-	if f.node != "" {
-		w += ` AND node_id=?`
-		a = append(a, f.node)
+	for _, k := range filterOrder {
+		vals := f.conds[k]
+		if len(vals) == 0 {
+			continue
+		}
+		if k == "domain" {
+			parts := make([]string, 0, len(vals))
+			for _, v := range vals {
+				parts = append(parts, `host=? OR host LIKE ? ESCAPE '\'`)
+				a = append(a, v, "%."+likeEscaper.Replace(v))
+			}
+			w += ` AND (` + strings.Join(parts, ` OR `) + `)`
+			continue
+		}
+		c := filterCols[k]
+		w += ` AND ` + c.expr + ` IN (?` + strings.Repeat(`,?`, len(vals)-1) + `)`
+		for _, v := range vals {
+			if c.isInt {
+				n, _ := strconv.ParseInt(v, 10, 64)
+				a = append(a, n)
+			} else {
+				a = append(a, v)
+			}
+		}
 	}
 	return w, a
+}
+
+// source picks the table for a query, the start aligned to its precision, and that precision.
+// Exact tables (minute / hour) are used unless a dimension-only column is needed.
+func (m *Master) source(f trafficFilter, dim bool) (table string, rowFrom int64, precision string) {
+	old := f.from < m.minuteFloor()
+	switch {
+	case dim && old:
+		return "dim_hour", f.from - f.from%3600, "1h"
+	case dim:
+		return "dim_5m", f.from - f.from%300, "5m"
+	case old:
+		return "traffic_hour", f.from - f.from%3600, "1h"
+	default:
+		return "traffic_minute", f.from - f.from%60, "1m"
+	}
 }
 
 func (m *Master) apiSeries(w http.ResponseWriter, r *http.Request) {
@@ -89,13 +190,38 @@ func (m *Master) apiSeries(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "The end time must be after the start time")
 		return
 	}
-	// minute data covers the retention window exactly; older ranges fall back to hours
-	table := "traffic_minute"
-	if f.from < m.minuteFloor() {
-		table = "traffic_hour"
-		if step < 3600 {
-			step = 3600
-		}
+	group := r.URL.Query().Get("group")
+	keyExpr := `''`
+	dimGroup := false
+	switch group {
+	case "user":
+		keyExpr = `CAST(user_id AS TEXT)`
+	case "node":
+		keyExpr = `node_id`
+	case "inbound":
+		keyExpr = `node_id||'/'||inbound`
+	case "outbound":
+		keyExpr = `outbound`
+	case "domain", "host":
+		keyExpr, dimGroup = `host`, true
+	case "src_ip", "rule":
+		keyExpr, dimGroup = group, true
+	case "port":
+		keyExpr, dimGroup = `CAST(port AS TEXT)`, true
+	case "", "total":
+		group = "total"
+	default:
+		writeErr(w, 400, "bad group")
+		return
+	}
+	// Minute data covers the retention window exactly; older ranges fall back to hours. Splitting or
+	// filtering by a connection detail (domain, source IP, ...) needs the 5-minute / hour dimension tables.
+	table, rowFrom, prec := m.source(f, dimGroup || f.needsDim())
+	switch prec {
+	case "1h":
+		step = max(step, 3600)
+	case "5m":
+		step = max(step, 300)
 	}
 	if (f.to-f.from)/step > 2000 {
 		writeErr(w, 400, "Too many data points (max 2000); pick a coarser step")
@@ -106,40 +232,23 @@ func (m *Master) apiSeries(w http.ResponseWriter, r *http.Request) {
 		off = m.tzOffset()
 	}
 	bucket := func(ts int64) int64 { return ((ts+off)/step)*step - off }
-
-	group := r.URL.Query().Get("group")
-	keyExpr := `''`
-	switch group {
-	case "user":
-		keyExpr = `CAST(user_id AS TEXT)`
-	case "node":
-		keyExpr = `node_id`
-	case "inbound":
-		keyExpr = `node_id||'/'||inbound`
-	case "outbound":
-		keyExpr = `outbound`
-	case "", "total":
-		group = "total"
-	default:
-		writeErr(w, 400, "bad group")
-		return
-	}
 	// rows are filtered at the table's own precision; buckets only group them
-	rowFrom := f.from - f.from%60
-	if table == "traffic_hour" {
-		rowFrom = f.from - f.from%3600
-	}
 	where, args := f.where(rowFrom)
-	rows, err := m.db.Query(`SELECT ts, `+keyExpr+`, SUM(up), SUM(down) FROM `+table+where+` GROUP BY ts, 2`, args...)
+	rows, err := m.db.Query(`SELECT ts, `+keyExpr+`, SUM(up), SUM(down), SUM(conns) FROM `+table+where+` GROUP BY ts, 2`, args...)
 	if errf(w, err) {
 		return
 	}
 	acc := map[string]map[int64][2]int64{}
 	tot := map[string][2]int64{}
+	var conns int64
 	for rows.Next() {
-		var ts, up, down int64
+		var ts, up, down, c int64
 		var key string
-		rows.Scan(&ts, &key, &up, &down)
+		rows.Scan(&ts, &key, &up, &down, &c)
+		if group == "domain" {
+			key = registrable(key)
+		}
+		conns += c
 		b := bucket(ts)
 		if acc[key] == nil {
 			acc[key] = map[int64][2]int64{}
@@ -203,6 +312,9 @@ func (m *Master) apiSeries(w http.ResponseWriter, r *http.Request) {
 		case "total":
 			return "total"
 		}
+		if k == "" {
+			return "(none)"
+		}
 		return k
 	}
 	start := bucket(f.from)
@@ -215,7 +327,7 @@ func (m *Master) apiSeries(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, s)
 	}
-	writeJSON(w, 200, map[string]any{"step": step, "from": start, "to": f.to, "group": group, "series": out})
+	writeJSON(w, 200, map[string]any{"step": step, "from": start, "to": f.to, "group": group, "precision": prec, "conns": conns, "series": out})
 }
 
 type topRow struct {
@@ -237,30 +349,21 @@ func registrable(host string) string {
 	return host
 }
 
+var exactDims = map[string]string{"user": "CAST(user_id AS TEXT)", "node": "node_id", "inbound": "node_id||'/'||inbound", "outbound": "outbound"}
+var detailDims = map[string]string{"host": "host", "domain": "host", "src_ip": "src_ip", "port": "CAST(port AS TEXT)", "rule": "rule", "network": "network"}
+
 func (m *Master) top(f trafficFilter, dim string, limit int) ([]topRow, error) {
-	exact := map[string]string{"user": "CAST(user_id AS TEXT)", "node": "node_id", "inbound": "node_id||'/'||inbound", "outbound": "outbound"}
-	dims := map[string]string{"host": "host", "domain": "host", "src_ip": "src_ip", "port": "CAST(port AS TEXT)", "rule": "rule", "network": "network"}
-	var q string
-	var args []any
-	if e, ok := exact[dim]; ok {
-		table, from := "traffic_minute", f.from-f.from%60
-		if f.from < m.minuteFloor() {
-			table, from = "traffic_hour", f.from-f.from%3600
+	e, ok := exactDims[dim]
+	isDetail := false
+	if !ok {
+		if e, ok = detailDims[dim]; !ok {
+			return nil, errBadDim
 		}
-		w, a := f.where(from)
-		q = `SELECT ` + e + `, SUM(up), SUM(down), SUM(conns), COUNT(DISTINCT user_id) FROM ` + table + w + ` GROUP BY 1`
-		args = a
-	} else if e, ok := dims[dim]; ok {
-		table, from := "dim_5m", f.from-f.from%300
-		if f.from < m.minuteFloor() {
-			table, from = "dim_hour", f.from-f.from%3600
-		}
-		w, a := f.where(from)
-		q = `SELECT ` + e + `, SUM(up), SUM(down), SUM(conns), COUNT(DISTINCT user_id) FROM ` + table + w + ` GROUP BY 1`
-		args = a
-	} else {
-		return nil, errBadDim
+		isDetail = true
 	}
+	table, from, _ := m.source(f, isDetail || f.needsDim())
+	w, args := f.where(from)
+	q := `SELECT ` + e + `, SUM(up), SUM(down), SUM(conns), COUNT(DISTINCT user_id) FROM ` + table + w + ` GROUP BY 1`
 	rows, err := m.db.Query(q, args...)
 	if err != nil {
 		return nil, err
@@ -340,17 +443,9 @@ func (m *Master) minuteFloor() int64 {
 
 // topPrecision tells the client how exact the breakdown for a dimension is.
 func (m *Master) topPrecision(f trafficFilter, dim string) string {
-	switch dim {
-	case "user", "node", "inbound", "outbound":
-		if f.from < m.minuteFloor() {
-			return "1h"
-		}
-		return "1m"
-	}
-	if f.from < m.minuteFloor() {
-		return "1h"
-	}
-	return "5m"
+	_, exact := exactDims[dim]
+	_, _, p := m.source(f, !exact || f.needsDim())
+	return p
 }
 
 func (m *Master) apiTop(w http.ResponseWriter, r *http.Request) {
