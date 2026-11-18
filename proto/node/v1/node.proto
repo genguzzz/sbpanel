@@ -20,6 +20,9 @@ service NodeHub {
   rpc FetchSpec(FetchSpecRequest) returns (NodeSpec);
   // Certificate renewal before expiry.
   rpc Renew(RenewRequest) returns (EnrollResponse);
+  // FetchUpgrade streams the sbnode binary of a release (verified and cached by the master),
+  // so nodes never need to reach GitHub themselves.
+  rpc FetchUpgrade(FetchUpgradeRequest) returns (stream UpgradeChunk);
 }
 
 message EnrollRequest {
@@ -44,6 +47,7 @@ message NodeMsg {
     OnlineSnapshot online = 4;
     ConnSnapshot conns = 5;
     CertReport certs = 6;
+    UpgradeStatus upgrade = 7;
   }
 }
 
@@ -55,8 +59,37 @@ message MasterMsg {
     Watch watch = 4;
     CloseConns close_conns = 5;
     KickIPs kick_ips = 6;
+    Upgrade upgrade = 7;
   }
 }
+
+// Upgrade asks the node to replace its binary (or put the previous one back) and restart.
+message Upgrade {
+  string version = 1;  // release tag; empty with rollback
+  string sha256 = 2;   // of the sbnode binary FetchUpgrade will send
+  int64 size = 3;
+  bool rollback = 4;   // install <binary>.prev instead
+  string health = 5;   // "marker" | "stable" (target predates the health marker)
+}
+
+// UpgradeStatus reports progress, and the last result after every (re)connect.
+message UpgradeStatus {
+  string state = 1;    // downloading | applying | upgraded | rolled_back | failed
+  string from = 2;
+  string to = 3;
+  string error = 4;
+  int64 started = 5;
+  int64 finished = 6;
+  bool can_rollback = 7;
+  bool rollback = 8;
+}
+
+message FetchUpgradeRequest {
+  string version = 1;
+  string arch = 2;
+}
+
+message UpgradeChunk { bytes data = 1; }
 
 // Watch turns the live connection stream on or off.
 message Watch { bool on = 1; }
@@ -97,6 +130,7 @@ message Hello {
   string os = 5;
   string arch = 6;
   string boot_id = 7;
+  repeated string features = 8;  // e.g. "upgrade": the node can be upgraded from the panel
 }
 
 message SysInfo {

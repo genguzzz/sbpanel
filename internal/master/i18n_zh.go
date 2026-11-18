@@ -4,7 +4,15 @@
 package master
 
 var zhCatalog = map[string]string{
-	"Too many failed sign-ins; try again in %d minutes": "登录失败次数过多，请 %d 分钟后再试",
+	"New sbpanel version":           "sbpanel 有新版本",
+	"Panel upgraded":                "面板已升级",
+	"Panel upgrade failed":          "面板升级失败",
+	"Node upgraded":                 "节点已升级",
+	"Node upgrade failed":           "节点升级失败",
+	"an upgrade is already running": "已有升级正在进行",
+	"no matching nodes":             "没有符合条件的节点",
+	"not running as a systemd or OpenRC service; upgrade with install.sh": "当前不是以 systemd 或 OpenRC 服务运行，请用 install.sh 升级",
+	"Too many failed sign-ins; try again in %d minutes":                   "登录失败次数过多，请 %d 分钟后再试",
 	"Line limit used up":                                 "线路限额已用尽",
 	"Traffic limit must be greater than 0":               "流量限额必须大于 0",
 	"Traffic limit must not be negative":                 "流量限额不能为负数",

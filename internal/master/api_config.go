@@ -478,6 +478,9 @@ var publicSettings = map[string]string{
 	"ui_appearance": "",
 	// sing-box core tuning pushed to every node (nodecore.go)
 	"node_core": "",
+	// release checks (update.go): "0" turns the periodic check off; mirror prefixes GitHub downloads
+	"update_check":  "1",
+	"update_mirror": "",
 }
 
 func (m *Master) apiSettings(w http.ResponseWriter, r *http.Request) {

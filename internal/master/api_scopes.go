@@ -31,12 +31,16 @@ var routeScopes = map[string]string{
 	"DELETE /api/tokens/{id}": ScopeAdmin,
 
 	// settings / system
-	"GET /api/audit":        ScopeRead,
-	"GET /api/settings":     ScopeRead,
-	"PUT /api/settings":     ScopeSettingsWrite,
-	"GET /api/backup":       ScopeAdmin, // the database holds the CA key and every secret
-	"POST /api/notify/test": ScopeSettingsWrite,
-	"POST /api/import/3xui": ScopeAdmin,
+	"GET /api/audit":          ScopeRead,
+	"GET /api/settings":       ScopeRead,
+	"PUT /api/settings":       ScopeSettingsWrite,
+	"GET /api/backup":         ScopeAdmin, // the database holds the CA key and every secret
+	"POST /api/notify/test":   ScopeSettingsWrite,
+	"POST /api/import/3xui":   ScopeAdmin,
+	"GET /api/update":         ScopeRead,
+	"POST /api/update/check":  ScopeSettingsWrite,
+	"POST /api/update/master": ScopeAdmin, // replaces the panel binary
+	"POST /api/update/nodes":  ScopeAdmin, // replaces node binaries
 
 	// observability
 	"GET /api/overview":       ScopeRead,

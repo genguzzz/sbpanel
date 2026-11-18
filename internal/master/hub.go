@@ -441,6 +441,8 @@ func (h *Hub) handle(s *session, msg *pb.NodeMsg) {
 			}
 		}
 		s.mu.Unlock()
+	case *pb.NodeMsg_Upgrade:
+		h.m.onNodeUpgrade(s.nodeID, m.Upgrade)
 	case *pb.NodeMsg_Certs:
 		s.mu.Lock()
 		s.certbot = m.Certs.CertbotNames

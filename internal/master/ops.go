@@ -208,7 +208,9 @@ var eventText = map[string]string{
 	"node_enrolled": "🆕 Node enrolled", "usage_reset": "🔄 Usage reset", "user_reactivated": "✅ User reactivated",
 	"cert_renewed": "🔐 Certificate renewed", "cert_renew_failed": "❗ Certificate renewal failed", "cert_expiring": "⏳ Certificate expiring",
 	"inbound_unreachable": "🔴 Inbound unreachable", "inbound_recovered": "🟢 Inbound recovered",
-	"limit_exceeded": "🚧 Line limit used up",
+	"limit_exceeded":   "🚧 Line limit used up",
+	"update_available": "🆕 New sbpanel version", "panel_upgraded": "⬆️ Panel upgraded", "panel_upgrade_failed": "❗ Panel upgrade failed",
+	"node_upgraded": "⬆️ Node upgraded", "node_upgrade_failed": "❗ Node upgrade failed",
 }
 
 // notifyLang is the language of Telegram / webhook notifications: that of the last admin sign-in

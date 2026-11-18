@@ -9,6 +9,7 @@ import { AppearanceSettings } from './settings/Appearance'
 import { ApiAgents } from './settings/ApiAgents'
 import { ApiDocs } from './settings/ApiDocs'
 import { NodeCoreSettings } from './settings/NodeCore'
+import { UpdatesSettings } from './settings/Updates'
 import { tr, useT } from '../i18n'
 import { C } from '../i18n/common'
 import { S } from '../i18n/settings'
@@ -27,10 +28,11 @@ const IconChip: IconC = (p) => <Svg {...p}><rect x="6" y="6" width="12" height="
 const IconArchive: IconC = (p) => <Svg {...p}><ellipse cx="12" cy="5.5" rx="8" ry="2.5" /><path d="M4 5.5v6c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-6" /><path d="M4 11.5v6c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-6" /></Svg>
 const IconImport: IconC = (p) => <Svg {...p}><path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" /><path d="M12 3v11M8 10l4 4 4-4" /></Svg>
 const IconAgent: IconC = (p) => <Svg {...p}><rect x="4" y="7" width="16" height="12" rx="3" /><path d="M12 7V4M9 3h6" /><circle cx="9" cy="13" r="1.2" /><circle cx="15" cy="13" r="1.2" /><path d="M2 12v2M22 12v2" /></Svg>
+const IconUpgrade: IconC = (p) => <Svg {...p}><path d="M12 19V7M7 11l5-5 5 5" /><path d="M5 21h14" /></Svg>
 const IconNavSide: IconC = (p) => <Svg {...p}><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="M9 4v16" /></Svg>
 const IconNavTop: IconC = (p) => <Svg {...p}><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="M3 9h18" /></Svg>
 
-type SectionId = 'account' | 'api' | 'appearance' | 'notify' | 'policy' | 'core' | 'backup' | 'import'
+type SectionId = 'account' | 'api' | 'appearance' | 'notify' | 'policy' | 'core' | 'updates' | 'backup' | 'import'
 const sec = (id: SectionId, icon: IconC, el: () => ReactNode) => ({
   id, icon, el,
   get label() { return tr(S)[`sec_${id}`] },
@@ -43,12 +45,13 @@ const SECTIONS: { id: SectionId; label: string; desc: string; icon: IconC; el: (
   sec('notify', IconBellS, () => <Notify />),
   sec('policy', IconSliders, () => <Policy />),
   sec('core', IconChip, () => <NodeCoreSettings />),
+  sec('updates', IconUpgrade, () => <UpdatesSettings />),
   sec('backup', IconArchive, () => <Backup />),
   sec('import', IconImport, () => <Import />),
 ]
 const isSection = (v: string | null): v is SectionId => SECTIONS.some((x) => x.id === v)
 // Old ?tab= links (and the removed subpage tab) map onto sections.
-const LEGACY_TAB: Record<string, SectionId> = { account: 'account', api: 'api', tokens: 'api', appearance: 'appearance', subpage: 'appearance', notify: 'notify', policy: 'policy', core: 'core', backup: 'backup', import: 'import' }
+const LEGACY_TAB: Record<string, SectionId> = { account: 'account', api: 'api', tokens: 'api', appearance: 'appearance', subpage: 'appearance', notify: 'notify', policy: 'policy', core: 'core', updates: 'updates', backup: 'backup', import: 'import' }
 
 const NAV_KEY = 'sbp-settings-nav'
 type NavPref = 'vertical' | 'horizontal'
@@ -328,7 +331,8 @@ function Account() {
 }
 
 const NOTIFY_IDS = ['node_offline', 'node_online', 'apply_failed', 'node_quota', 'quota_exceeded', 'limit_exceeded', 'user_expired', 'device_limit', 'node_enrolled',
-  'usage_reset', 'cert_expiring', 'cert_renew_failed', 'cert_renewed', 'inbound_unreachable', 'inbound_recovered'] as const
+  'usage_reset', 'cert_expiring', 'cert_renew_failed', 'cert_renewed', 'inbound_unreachable', 'inbound_recovered',
+  'update_available', 'panel_upgraded', 'panel_upgrade_failed', 'node_upgraded', 'node_upgrade_failed'] as const
 const notifyKinds = () => NOTIFY_IDS.map((id) => ({ id, label: tr(S)[`k_${id}`] }))
 
 function useSettings() {

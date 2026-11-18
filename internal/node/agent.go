@@ -106,6 +106,7 @@ type Agent struct {
 	applyMu    sync.Mutex
 	applied    atomic.Uint64
 	applyErr   atomic.Value // string
+	upgrading  atomic.Bool  // an upgrade is being prepared (upgrade.go)
 	pushWake   chan struct{}
 	client     pb.NodeHubClient
 	lastTotals [2]int64
@@ -379,8 +380,12 @@ func (a *Agent) session(ctx context.Context) error {
 	hostname, _ := os.Hostname()
 	if err := send(&pb.NodeMsg{M: &pb.NodeMsg_Hello{Hello: &pb.Hello{
 		Version: Version, SingboxVersion: SingboxVersion(), AppliedRevision: a.applied.Load(),
-		Hostname: hostname, Os: runtime.GOOS, Arch: runtime.GOARCH, BootId: a.bootID,
+		Hostname: hostname, Os: runtime.GOOS, Arch: runtime.GOARCH, BootId: a.bootID, Features: []string{"upgrade"},
 	}}}); err != nil {
+		return err
+	}
+	a.markHealthy()
+	if err := send(&pb.NodeMsg{M: &pb.NodeMsg_Upgrade{Upgrade: a.upgradeStatus()}}); err != nil {
 		return err
 	}
 	a.log.Printf("connected to master %s as %s", a.master, a.nodeID)
@@ -458,6 +463,8 @@ func (a *Agent) session(ctx context.Context) error {
 				close(watchStop)
 				watchStop = nil
 			}
+		case *pb.MasterMsg_Upgrade:
+			go a.upgrade(ctx, m.Upgrade, send)
 		case *pb.MasterMsg_Ping:
 		}
 	}

@@ -123,6 +123,10 @@ func (m *Master) routes() http.Handler {
 	mux.HandleFunc("GET /api/backup", a(m.apiBackup))
 	mux.HandleFunc("POST /api/notify/test", a(m.apiNotifyTest))
 	mux.HandleFunc("POST /api/import/3xui", a(m.apiImport3XUI))
+	mux.HandleFunc("GET /api/update", a(m.apiUpdate))
+	mux.HandleFunc("POST /api/update/check", a(m.apiUpdateCheck))
+	mux.HandleFunc("POST /api/update/master", a(m.apiUpdateMaster))
+	mux.HandleFunc("POST /api/update/nodes", a(m.apiUpdateNodes))
 
 	mux.HandleFunc("GET /api/overview", a(m.apiOverview))
 	mux.HandleFunc("GET /api/traffic/series", a(m.apiSeries))

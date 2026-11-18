@@ -198,3 +198,20 @@ export async function apiUpload<T>(path: string, file: File): Promise<T> {
   }
   return data as T
 }
+
+// ---- panel & node upgrades (GET /api/update) ----
+
+export type Release = { tag: string; name: string; notes: string; url: string; published: string }
+export type UpgradeResult = { state: 'upgraded' | 'rolled_back' | 'failed'; from: string; to: string; rollback?: boolean; error?: string; started: number; finished: number }
+/** What the master is doing before the helper / node takes over. */
+export type UpgradeJob = { state: 'downloading' | 'applying' | 'preparing' | 'sent' | 'failed'; to: string; error?: string; at: number }
+export type NodeUpgradeStatus = {
+  state?: 'downloading' | 'applying' | 'upgraded' | 'rolled_back' | 'failed'; from?: string; to?: string; error?: string
+  started?: number; finished?: number; can_rollback?: boolean; rollback?: boolean
+}
+export type NodeUpdate = { id: string; name: string; online: boolean; version: string; arch: string; release: boolean; supported: boolean; has_update: boolean; status?: NodeUpgradeStatus; job?: UpgradeJob }
+export type UpdateState = {
+  current: string; release: boolean; latest: Release | null; has_update: boolean; checked_at: number; check_error?: string; check_enabled: boolean; mirror: string
+  supported: boolean; unsupported?: string; running: boolean; job?: UpgradeJob; last?: UpgradeResult; can_rollback: boolean
+  nodes: NodeUpdate[]
+}

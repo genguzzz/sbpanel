@@ -51,6 +51,7 @@ A proxy management panel built on **sing-box**. The master and the nodes are dep
 | **Domains & certificates** | Guided setup: connect a Cloudflare API token to create DNS records and issue certificates via DNS-01 (wildcards supported, no port 80 needed), or import PEM files, or use certbot certificates already on a node. Renewal swaps certificate files without rebuilding inbounds. |
 | **Connectivity tests** | The master tests each inbound stage by stage (DNS → TCP/QUIC → TLS → proxy) with a hidden probe user, and tells you which side failed: a closed port, an SNI mismatch, the inbound rejecting the client, or an unreachable upstream behind the inbound. |
 | **API & agents** | Scoped API keys (read / users:write / nodes:write / settings:write / admin) with expiry, IP allowlists and rate limits. OpenAPI 3.1 spec with an in-panel docs page. Built-in MCP server (`POST /mcp`) so Claude Code and other agents can query and manage users. |
+| **Upgrades** | The panel checks GitHub releases and shows new versions in the top bar and as a notification. One click upgrades the panel, or any nodes (they receive the verified binary from the panel, so they need no GitHub access). The old binary is kept as `.prev`; if the new one doesn't report healthy (or crashes right after), it is put back and restarted automatically. Manual rollback from the same page, or `sbmaster upgrade` / `sbnode upgrade [--version vX.Y.Z] [--rollback]` from a shell. |
 | **Operations** | TOTP two-factor login, audit log, Telegram / webhook notifications, one-click backup, `sbmaster reset-admin`, migration from 3x-ui (API JSON or `x-ui.db`). |
 | **UI** | React 19, react-aria-components, Tailwind v4, ECharts. Four palettes (Graphite, Rosé Pine, Catppuccin, Nord) in light and dark, custom accent colour, ⌘K command palette, `g` + letter navigation, mobile layout. |
 
@@ -81,6 +82,12 @@ curl -fsSL https://raw.githubusercontent.com/genguzzz/sbpanel/main/install.sh | 
 curl -fsSL https://raw.githubusercontent.com/genguzzz/sbpanel/main/install.sh | sh -s -- status
 ```
 If GitHub is slow to reach, add `--mirror https://<your-github-proxy>/`. Use `--version vX.Y.Z` to install a specific release.
+
+From v0.4.0 on you can also upgrade from the panel (Settings → Updates) or on the machine itself, with health checks and automatic rollback:
+```bash
+sbmaster upgrade                 # latest release; --version vX.Y.Z, --rollback, --mirror URL
+sbnode upgrade
+```
 
 **Admin account recovery**
 ```bash

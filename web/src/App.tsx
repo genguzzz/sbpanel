@@ -1,7 +1,8 @@
 import { Component, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Dialog, DialogTrigger, Modal, ModalOverlay, Popover, Button as RButton } from 'react-aria-components'
-import { api, type Template, type User, type Node } from './lib/api'
+import { api, type Template, type User, type Node, type UpdateState } from './lib/api'
+import { U } from './i18n/updates'
 import { useRoute, href } from './lib/router'
 import { useSubUrl } from './lib/actions'
 import { C } from './i18n/common'
@@ -146,6 +147,7 @@ export function App() {
             <IconSearch size={14} /><span className="truncate">{t.searchBox}</span><kbd className="ml-auto rounded bg-overlay px-1.5 text-[11px]">⌘K</kbd>
           </button>
           <div className="flex-1" />
+          <UpdatePill />
           <SyncStatus />
           {drafts > 0 && (
             <a href={href('templates')} className="hidden h-8 items-center gap-1.5 rounded-full bg-warn/15 px-3 text-[13px] font-medium text-warn xl:flex">
@@ -224,6 +226,19 @@ function NavLink({ it, active, badge }: { it: NavItem; active: boolean; badge?: 
         {badge !== undefined && <span className="ml-auto rounded-full bg-warn/20 px-1.5 text-[11px] font-semibold text-warn">{badge}</span>}
       </a>
     </li>
+  )
+}
+
+/** Header pill: a newer sbpanel release is out (panel or any node behind it). */
+function UpdatePill() {
+  const q = useQuery({ queryKey: ['update'], queryFn: () => api<UpdateState>('/update'), refetchInterval: 10 * 60_000, retry: false })
+  const d = q.data
+  if (!d?.latest || !(d.has_update || d.nodes.some((n) => n.has_update))) return null
+  return (
+    <a href={href('settings', { s: 'updates' })} title={tr(U).pill(d.latest.tag)}
+      className="flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-accent/12 px-2.5 text-[13px] font-medium text-accent-text outline-none transition-colors duration-(--dur-2) hover:bg-accent/20 focus-visible:ring-2 focus-visible:ring-accent sm:px-3">
+      <span className="h-2 w-2 rounded-full bg-current" /><span className="hidden sm:inline">{tr(U).pill(d.latest.tag)}</span>
+    </a>
   )
 }
 

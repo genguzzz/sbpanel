@@ -17,6 +17,7 @@ export const S = dict({
   sec_notify: 'Notifications', sec_notify_d: 'Telegram / webhook channels and events',
   sec_policy: 'Policy', sec_policy_d: 'Device policy, data retention and node enrollment',
   sec_core: 'Node core', sec_core_d: 'sing-box log level, listener options and sbnode memory, for every node',
+  sec_updates: 'Updates', sec_updates_d: 'New releases, upgrading the panel and nodes, automatic rollback',
   sec_backup: 'Backup & restore', sec_backup_d: 'Download the database and how to restore it',
   sec_import: 'Migrate from 3x-ui', sec_import_d: 'Import inbounds and users from 3x-ui',
   // account
@@ -35,6 +36,8 @@ export const S = dict({
   k_device_limit: 'Device limit exceeded', k_node_enrolled: 'New node enrolled', k_usage_reset: 'Usage period reset',
   k_cert_expiring: 'Certificate expiring (≤ 14 days)', k_cert_renew_failed: 'Certificate renewal failed', k_cert_renewed: 'Certificate renewed',
   k_inbound_unreachable: 'Inbound unreachable (connectivity check)', k_inbound_recovered: 'Inbound recovered',
+  k_update_available: 'New sbpanel version released', k_panel_upgraded: 'Panel upgraded', k_panel_upgrade_failed: 'Panel upgrade failed / rolled back',
+  k_node_upgraded: 'Node upgraded', k_node_upgrade_failed: 'Node upgrade failed / rolled back',
   testSent: 'Test message sent', channels: 'Channels', tokenSet: 'Set (leave empty to keep)', fromBotFather: 'Get one from @BotFather',
   egChat: 'e.g. 123456789', sendTest: 'Send test message', whichEvents: 'Events to notify',
   // policy
@@ -77,6 +80,7 @@ export const S = dict({
   sec_notify: '通知', sec_notify_d: 'Telegram / Webhook 渠道与事件',
   sec_policy: '策略', sec_policy_d: '设备数策略、数据保留与节点接入',
   sec_core: '节点内核', sec_core_d: '所有节点的 sing-box 日志级别、监听参数与 sbnode 内存',
+  sec_updates: '版本更新', sec_updates_d: '新版本检查、面板与节点升级、失败自动回退',
   sec_backup: '备份与恢复', sec_backup_d: '下载数据库与恢复步骤',
   sec_import: '从 3x-ui 迁移', sec_import_d: '导入 3x-ui 的入站和用户',
   pwMismatch: '两次输入的新密码不一致', pwChanged: '密码已修改',
@@ -93,6 +97,8 @@ export const S = dict({
   k_device_limit: '设备数超限', k_node_enrolled: '新节点接入', k_usage_reset: '用量周期重置',
   k_cert_expiring: '证书即将过期（≤14 天）', k_cert_renew_failed: '证书续期失败', k_cert_renewed: '证书已续期',
   k_inbound_unreachable: '入站不可达（连通性检查）', k_inbound_recovered: '入站恢复',
+  k_update_available: 'sbpanel 发布新版本', k_panel_upgraded: '面板已升级', k_panel_upgrade_failed: '面板升级失败 / 已回退',
+  k_node_upgraded: '节点已升级', k_node_upgrade_failed: '节点升级失败 / 已回退',
   testSent: '测试消息已发送', channels: '渠道', tokenSet: '已设置（留空保持不变）', fromBotFather: '从 @BotFather 获取',
   egChat: '例如 123456789', sendTest: '发送测试消息', whichEvents: '通知哪些事件',
   overLimit: '设备数超限时', policy: '策略',

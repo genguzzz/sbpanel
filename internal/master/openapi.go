@@ -240,6 +240,17 @@ var apiDocs = map[string]opDoc{
 	"GET /api/events": {Tag: "events", Summary: "System events (newest first)", Query: []oaParam{qp("limit", "Default 100", js{"type": "integer"})}, Resp: arr("$Event")},
 	"GET /api/online": {Tag: "traffic", Summary: "Online users and source IPs (live)", Resp: arr("$Online")},
 
+	"GET /api/update": {Tag: "settings", Summary: "Panel and node versions, latest release, upgrade progress and last results",
+		Resp: tObj(js{"current": tStr("Running sbmaster version"), "latest": tObj(js{"tag": tStr(""), "name": tStr(""), "notes": tStr("Release notes (Markdown)"), "url": tStr(""), "published": tStr("")}),
+			"has_update": tBool(""), "checked_at": tTS(""), "check_error": tStr(""), "supported": tBool("The panel can upgrade itself (systemd / OpenRC service)"),
+			"running": tBool("A self-upgrade is in flight"), "can_rollback": tBool("A previous sbmaster binary is kept"),
+			"nodes": arr(tObj(js{"id": tStr(""), "name": tStr(""), "online": tBool(""), "version": tStr(""), "arch": tStr(""), "supported": tBool("The node can be upgraded from the panel"), "has_update": tBool("")}))})},
+	"POST /api/update/check": {Tag: "settings", Summary: "Check GitHub for the latest release now", Resp: js{"type": "object"}},
+	"POST /api/update/master": {Tag: "settings", Summary: "Upgrade (or roll back) the panel; it restarts and rolls back automatically if the new version doesn't come up",
+		Desc: "Returns 202 before the restart; poll GET /api/update.", Body: tObj(js{"version": tStr("Release tag; default the latest"), "rollback": tBool("Put the previous binary back")}), Resp: js{"type": "object"}},
+	"POST /api/update/nodes": {Tag: "settings", Summary: "Upgrade (or roll back) nodes; each rolls back automatically if the new sbnode doesn't reconnect",
+		Body: tObj(js{"ids": arr(tStr("")), "outdated": tBool("Every online node behind the release (when ids is empty)"), "version": tStr("Release tag; default the latest"), "rollback": tBool("")}), Resp: js{"type": "object"}},
+
 	"GET /api/nodes":                   {Tag: "nodes", Summary: "Nodes and their health", Resp: arr("$Node")},
 	"POST /api/nodes":                  {Tag: "nodes", Summary: "Create a node and return its enrollment command", Body: "$NodeInput", Resp: "$Enroll"},
 	"PATCH /api/nodes/{id}":            {Tag: "nodes", Summary: "Update a node", Body: "$NodeInput"},

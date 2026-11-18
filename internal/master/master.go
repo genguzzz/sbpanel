@@ -84,6 +84,7 @@ type Master struct {
 	certs     *certManager
 	probes    *prober
 	metrics   *masterMetrics
+	upd       *updates // release checks and upgrades (update.go)
 }
 
 func New(cfg Config) (*Master, error) {
@@ -102,6 +103,7 @@ func New(cfg Config) (*Master, error) {
 	m := &Master{cfg: cfg, db: db, log: log.New(os.Stderr, "[master] ", log.LstdFlags), loc: loc, quit: make(chan struct{})}
 	m.hub = newHub(m)
 	m.metrics = newMasterMetrics()
+	m.upd = newUpdates()
 	eventHook = m.onEvent
 	if err := m.initSecrets(); err != nil {
 		return nil, err
@@ -193,6 +195,8 @@ func (m *Master) Run(ctx context.Context) error {
 	errc := make(chan error, 2)
 	go func() { errc <- m.hub.Serve(gl, m.ca) }()
 	go func() { errc <- srv.Serve(wl) }()
+	go m.updateLoop(stop)
+	go m.afterStart(stop)
 	select {
 	case <-ctx.Done():
 	case err = <-errc:

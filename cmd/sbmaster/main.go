@@ -11,9 +11,11 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 	_ "time/tzdata"
 
 	"sbpanel/internal/master"
+	"sbpanel/internal/updater"
 	"sbpanel/web"
 )
 
@@ -31,6 +33,23 @@ func main() {
 	}
 	if len(os.Args) > 1 && (os.Args[1] == "version" || os.Args[1] == "--version") {
 		fmt.Println("sbmaster", master.Version)
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "upgrade-helper" {
+		// swaps in a staged binary, restarts sbmaster and rolls back if it doesn't come up
+		fs := flag.NewFlagSet("upgrade-helper", flag.ExitOnError)
+		dir := fs.String("dir", "", "upgrade directory holding plan.json")
+		fs.Parse(os.Args[2:])
+		if *dir == "" {
+			log.Fatal("usage: sbmaster upgrade-helper --dir DIR")
+		}
+		if err := updater.Helper(*dir); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "upgrade" {
+		cliUpgrade("sbmaster", os.Args[2:])
 		return
 	}
 	if len(os.Args) > 1 && os.Args[1] == "reset-admin" {
@@ -133,4 +152,29 @@ func resetAdmin(args []string) {
 		log.Fatal(err)
 	}
 	fmt.Println("password reset and 2FA cleared for", *user)
+}
+
+// sbmaster upgrade [--version vX.Y.Z] [--rollback] [--mirror URL]: upgrade the installed service
+// from a shell, with the same verification, health check and automatic rollback as the panel.
+func cliUpgrade(bin string, args []string) {
+	fs := flag.NewFlagSet("upgrade", flag.ExitOnError)
+	data := fs.String("data", env("SBM_DATA", "/var/lib/sbmaster"), "data directory")
+	version := fs.String("version", "", "release tag (default: the latest)")
+	rollback := fs.Bool("rollback", false, "put the previous binary back")
+	mirror := fs.String("mirror", "", "prefix for GitHub downloads, e.g. https://ghproxy.example/")
+	fs.Parse(args)
+	say := func(f string, a ...any) { fmt.Printf("==> "+f+"\n", a...) }
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	defer cancel()
+	r, err := updater.CLI{Binary: bin, Dir: *data, Version: *version, Rollback: *rollback, Mirror: *mirror, Timeout: 90}.Run(ctx, say)
+	if err != nil {
+		log.Fatal(err)
+	}
+	say("%s: %s -> %s", r.State, r.From, r.To)
+	if r.Error != "" {
+		fmt.Println(r.Error)
+	}
+	if r.State != updater.StateUpgraded {
+		os.Exit(1)
+	}
 }

@@ -51,6 +51,7 @@
 | **域名与证书** | 引导式设置：填入 Cloudflare API Token 后自动建 DNS 记录、用 DNS-01 签发证书（支持通配符，节点不用开 80 端口）；也可以导入 PEM，或直接用节点上 certbot 的证书；续期只替换证书文件，不重建入站 |
 | **连通性测试** | master 用隐藏的探测用户逐段测试每个入站（DNS → TCP/QUIC → TLS → 代理），并指出是哪一侧的问题：端口未开放、SNI 不匹配、入站拒绝了客户端，还是入站后面的上游不可达 |
 | **API 与智能体** | 带权限范围的 API 密钥（read / users:write / nodes:write / settings:write / admin），可设有效期、来源 IP 白名单、限流；OpenAPI 3.1 文档与面板内文档页；内置 MCP 服务器（`POST /mcp`），Claude Code 等智能体可直接查询和管理用户 |
+| **版本更新** | 面板定期检查 GitHub 发布，有新版本时在顶栏和通知里提示。一键升级面板或任意节点（节点从面板获取校验过的程序，无需访问 GitHub）。旧程序保留为 `.prev`；新版本没有报告健康（或启动后很快崩溃）时自动换回并重启。也可在同一页面手动回退，或在服务器上执行 `sbmaster upgrade` / `sbnode upgrade [--version vX.Y.Z] [--rollback]`。 |
 | **运维** | 两步验证（TOTP）、审计日志、Telegram / Webhook 通知、一键备份、`sbmaster reset-admin`、从 3x-ui 迁移（API JSON 或 `x-ui.db`） |
 | **界面** | React 19、react-aria-components、Tailwind v4、ECharts；四套配色（Graphite、Rosé Pine、Catppuccin、Nord）各有浅色和深色，可自定义强调色；⌘K 命令面板，`g`+字母 跳转；手机布局 |
 
@@ -81,6 +82,12 @@ curl -fsSL https://raw.githubusercontent.com/genguzzz/sbpanel/main/install.sh | 
 curl -fsSL https://raw.githubusercontent.com/genguzzz/sbpanel/main/install.sh | sh -s -- status
 ```
 GitHub 访问不畅时，可以加 `--mirror https://<你的 GitHub 代理>/` 走镜像；用 `--version vX.Y.Z` 安装指定版本。
+
+从 v0.4.0 起也可以在面板（设置 → 版本更新）或服务器上直接升级，带健康检查和失败自动回退：
+```bash
+sbmaster upgrade                 # 最新版本；可加 --version vX.Y.Z、--rollback、--mirror URL
+sbnode upgrade
+```
 
 **找回管理员账号**
 ```bash
