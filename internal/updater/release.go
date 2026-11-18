@@ -63,11 +63,36 @@ func (s Source) api() string  { return strings.TrimRight(or(s.API, "https://api.
 func (s Source) web() string {
 	return s.Mirror + strings.TrimRight(or(s.Web, "https://github.com"), "/")
 }
+// client is the configured client with a redirect policy that never leaves HTTPS: the
+// archive is only as trustworthy as the checksums.txt fetched over the same path.
 func (s Source) client() *http.Client {
+	c := *http.DefaultClient
 	if s.Client != nil {
-		return s.Client
+		c = *s.Client
 	}
-	return http.DefaultClient
+	next := c.CheckRedirect
+	c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) > 0 && via[0].URL.Scheme == "https" && req.URL.Scheme != "https" {
+			return fmt.Errorf("refusing redirect from https to %s", req.URL.Redacted())
+		}
+		if next != nil {
+			return next(req, via)
+		}
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		return nil
+	}
+	return &c
+}
+
+// checkMirror: a mirror serves the archive and its checksums.txt alike, so the connection
+// to it must at least be authenticated.
+func (s Source) checkMirror() error {
+	if s.Mirror != "" && !strings.HasPrefix(strings.ToLower(s.Mirror), "https://") {
+		return fmt.Errorf("download mirror %q must be an https:// URL", s.Mirror)
+	}
+	return nil
 }
 
 func or(a, b string) string {
@@ -87,6 +112,9 @@ var describeRe = regexp.MustCompile(`-\d+-g[0-9a-f]{4,}(?:-dirty)?$|-dirty$`)
 func ValidTag(t string) bool { return tagRe.MatchString(t) && !describeRe.MatchString(t) }
 
 func (s Source) get(ctx context.Context, url string) (*http.Response, error) {
+	if err := s.checkMirror(); err != nil {
+		return nil, err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
