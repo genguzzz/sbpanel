@@ -214,7 +214,7 @@ func Start(p Plan, src string) error {
 	if p.Health == "" {
 		p.Health = HealthMarker
 	}
-	if err := os.MkdirAll(p.Dir, 0o700); err != nil {
+	if err := privateDir(p.Dir, true); err != nil {
 		return err
 	}
 	if locked(p.Dir, time.Now()) {
@@ -300,6 +300,9 @@ const (
 )
 
 func run(p Plan, env Env) error {
+	if err := privateDir(p.Dir, false); err != nil {
+		return err
+	}
 	lock := filepath.Join(p.Dir, fLock)
 	if locked(p.Dir, env.Now()) {
 		return ErrBusy
