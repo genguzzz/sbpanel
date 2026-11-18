@@ -60,7 +60,7 @@ type Source struct {
 
 func (s Source) repo() string { return or(s.Repo, Repo) }
 func (s Source) api() string  { return strings.TrimRight(or(s.API, "https://api.github.com"), "/") }
-func (s Source) web() string { return s.Mirror + s.direct() }
+func (s Source) web() string  { return s.Mirror + s.direct() }
 
 // direct is the release host without the mirror prefix.
 func (s Source) direct() string { return strings.TrimRight(or(s.Web, "https://github.com"), "/") }
@@ -80,6 +80,7 @@ type statusError struct {
 }
 
 func (e *statusError) Error() string { return "GET " + e.url + ": " + e.status }
+
 // client is the configured client with a redirect policy that never leaves HTTPS: the
 // archive is only as trustworthy as the checksums.txt fetched over the same path.
 func (s Source) client() *http.Client {

@@ -19,6 +19,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"sbpanel/internal/logx"
 	"sbpanel/internal/pki"
 )
 
@@ -100,7 +101,7 @@ func New(cfg Config) (*Master, error) {
 	if err != nil {
 		return nil, fmt.Errorf("tz: %w", err)
 	}
-	m := &Master{cfg: cfg, db: db, log: log.New(os.Stderr, "[master] ", log.LstdFlags), loc: loc, quit: make(chan struct{})}
+	m := &Master{cfg: cfg, db: db, log: logx.New(os.Stderr, "[master] "), loc: loc, quit: make(chan struct{})}
 	m.hub = newHub(m)
 	m.metrics = newMasterMetrics()
 	m.upd = newUpdates()

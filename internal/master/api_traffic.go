@@ -452,9 +452,9 @@ func (m *Master) apiTop(w http.ResponseWriter, r *http.Request) {
 	f := m.filter(r, 24)
 	w.Header().Set("X-Precision", m.topPrecision(f, r.URL.Query().Get("dim")))
 	w.Header().Set("Access-Control-Expose-Headers", "X-Precision")
-	limit := int(qInt(r, "limit", 50))
-	if limit < 1 || limit > 1000 {
-		limit = 50
+	limit := 50
+	if v := qInt(r, "limit", 50); v >= 1 && v <= 1000 { // range-checked before narrowing to int
+		limit = int(v)
 	}
 	out, err := m.top(f, r.URL.Query().Get("dim"), limit)
 	if err == errBadDim {

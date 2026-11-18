@@ -31,6 +31,8 @@ jobs:
         run: cd web && pnpm install --frozen-lockfile && pnpm build
       - name: UI preset fixture is current
         run: node --experimental-strip-types web/scripts/preset-fixture.ts --check
+      - name: gofmt
+        run: test -z "$(gofmt -l cmd internal test tools | tee /dev/stderr)"
       - name: vet
         run: go vet -tags with_quic,with_utls,with_acme ./...
       - name: test

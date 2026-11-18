@@ -25,6 +25,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/proto"
 
+	"sbpanel/internal/logx"
 	"sbpanel/internal/pb"
 	"sbpanel/internal/pki"
 	"sbpanel/internal/procstat"
@@ -150,7 +151,7 @@ func NewAgent(cfg Config) (*Agent, error) {
 	if cfg.MaxSpool == 0 {
 		cfg.MaxSpool = int(7 * 24 * time.Hour / cfg.Window)
 	}
-	a := &Agent{cfg: cfg, log: log.New(os.Stderr, "[node] ", log.LstdFlags), pushWake: make(chan struct{}, 1), proc: procstat.New()}
+	a := &Agent{cfg: cfg, log: logx.New(os.Stderr, "[node] "), pushWake: make(chan struct{}, 1), proc: procstat.New()}
 	a.applyErr.Store("")
 	id, err := readFile(cfg.Dir, fID)
 	if err != nil {
