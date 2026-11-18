@@ -89,20 +89,6 @@ sbmaster upgrade                 # latest release; --version vX.Y.Z, --rollback,
 sbnode upgrade
 ```
 
-**Docker**: `ghcr.io/genguzzz/sbpanel` (amd64 / arm64) is a small runtime image without sbpanel binaries. On every start it downloads the release named by `SBP_VERSION` (default `latest`; or e.g. `v0.4.0`), verifies it against `checksums.txt` and caches it in the data volume, so a container also starts when GitHub is unreachable. `SBP_MIRROR=https://<your-github-proxy>/` routes the download through a proxy. Ready-made compose file: [deploy/docker/compose.yml](deploy/docker/compose.yml).
-```bash
-# panel: web UI on 127.0.0.1:8080 (put an HTTPS proxy in front), nodes connect to 9443
-docker run -d --name sbmaster --restart unless-stopped -p 127.0.0.1:8080:8080 -p 9443:9443 \
-  -e SBM_PUBLIC_GRPC=panel.example.com:9443 -v sbmaster:/var/lib/sbmaster ghcr.io/genguzzz/sbpanel
-docker logs sbmaster | grep -i password      # initial admin password (or set SBM_ADMIN_PASSWORD)
-
-# node: host networking, so the inbounds the panel assigns are reachable; enrolls on the first start
-docker run -d --name sbnode --restart unless-stopped --network host --cap-add NET_ADMIN \
-  -e SBN_MASTER=panel.example.com:9443 -e SBN_TOKEN=<one-time-token> -e SBN_CA_SHA256=<ca-fingerprint> \
-  -v sbnode:/var/lib/sbnode ghcr.io/genguzzz/sbpanel node
-```
-Upgrade a container by restarting it (`docker restart sbmaster`); with a pinned `SBP_VERSION`, change it and recreate the container. The panel shows that instead of its one-click upgrade. Other commands run as is, e.g. `docker exec -it sbmaster sbmaster reset-admin --user admin --password -`.
-
 **Admin account recovery**
 ```bash
 sbmaster reset-admin --user admin --password -            # reads the new password from stdin
@@ -113,6 +99,43 @@ sbmaster reset-admin --user alice --rename admin --password -   # also renames t
 - Users only: `sbmaster import-3xui --users-only --json export.json`. Usernames, UUIDs, passwords, quotas, expiry and subIds are kept, so existing `/sub/<subId>` links keep working.
 - Users and inbounds: `--node <ID> --db /etc/x-ui/x-ui.db`.
 - Add `--dry-run` to either to preview.
+
+### Docker
+
+The image `ghcr.io/genguzzz/sbpanel` (amd64 / arm64) runs either the panel (`master`) or a node (`node`). It is a small runtime: on start it downloads the sbpanel release, verifies it against the release's `checksums.txt` and caches it in the data volume, so it also starts when GitHub is unreachable.
+
+| Tag | Runs |
+|---|---|
+| `:v0.4.1`, `:0.4` | that release (recommended: panel and nodes on the same tag) |
+| `:latest` | the newest release, checked on every start |
+
+`SBP_VERSION=vX.Y.Z` overrides the release, `SBP_MIRROR=https://<your-github-proxy>/` downloads through a proxy.
+
+**Panel**: host networking, the web UI on localhost behind your HTTPS reverse proxy (nginx / Caddy), nodes connect to 9443:
+```bash
+docker run -d --name sbmaster --restart unless-stopped --network host \
+  -e SBM_WEB=127.0.0.1:8080 -e SBM_PUBLIC_GRPC=panel.example.com:9443 \
+  -v sbmaster:/var/lib/sbmaster ghcr.io/genguzzz/sbpanel:v0.4.1
+docker logs sbmaster 2>&1 | grep -i password    # initial admin password (or set SBM_ADMIN_PASSWORD on first start)
+```
+Open 9443/tcp in the firewall. Panel settings are the `SBM_*` variables: `SBM_WEB`, `SBM_GRPC` (default `:9443`), `SBM_PUBLIC_GRPC` (the address nodes dial, shown in Add node), `SBM_TZ`, `SBM_ADMIN_PASSWORD`.
+
+**Node**: in the panel open Nodes → Add node → **Docker** and run the command it shows on the node's server. It looks like this:
+```bash
+docker run -d --name sbnode --restart unless-stopped --network host --cap-add NET_ADMIN \
+  -e SBN_MASTER=panel.example.com:9443 -e SBN_TOKEN=<one-time-token> \
+  -e SBN_CA_SHA256=<ca-fingerprint> \
+  -v sbnode:/var/lib/sbnode ghcr.io/genguzzz/sbpanel:v0.4.1 node
+```
+The node enrolls on its first start (the token is single-use; later starts reuse the certificate in the volume) and shows as online within seconds. If the node runs on the same machine as the panel, set the node's public address (Nodes → edit) so subscriptions hand out the server's address, not 127.0.0.1.
+
+**Why host networking**: inbounds are created from the panel at any time, on any TCP / UDP port. With bridge networking every port would have to be published when the container is created, so new inbounds wouldn't be reachable. Port publishing can also hide the client's address (IPv6, rootless Docker, connections from the same host): traffic totals stay right (they are counted per user), but the per-IP views, device limits and live connections would show Docker's address. For the panel, host networking lets it see the real visitor address behind a reverse proxy on the same host and the real address of nodes.
+
+**Compose**: [deploy/docker/compose.yml](deploy/docker/compose.yml) has both services (`docker compose up -d`; add `--profile node` for a node on the same host).
+
+**Upgrade**: change the tag (or pull `:latest`) and recreate: `docker compose pull && docker compose up -d --force-recreate`, or `docker pull …` + `docker rm -f` + the `docker run` above. Data stays in the volumes. Roll back the same way with the previous tag. Settings → Updates shows this instead of its one-click upgrade. Upgrade the panel first, then the nodes.
+
+**Other commands** run inside the container, e.g. `docker exec -it sbmaster sbmaster reset-admin --user admin --password -`.
 
 ## API and AI agents
 

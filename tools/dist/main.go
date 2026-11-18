@@ -86,8 +86,13 @@ Add a node: copy the command from the panel (节点 → 添加节点), or:
 
     curl -fsSL https://raw.githubusercontent.com/genguzzz/sbpanel/main/install.sh | sh -s -- node --master HOST:9443 --token TOKEN --ca-sha256 FP
 
-Upgrade everything on a machine: `+"`install.sh upgrade`"+`
-`, *version, *singbox)
+Upgrade everything on a machine: `+"`install.sh upgrade`"+`, or from the panel (Settings → Updates).
+
+Docker (amd64 / arm64): `+"`ghcr.io/genguzzz/sbpanel:%s`"+` runs this release (see "Docker" in the README):
+
+    docker run -d --name sbmaster --restart unless-stopped --network host -e SBM_WEB=127.0.0.1:8080 \
+      -e SBM_PUBLIC_GRPC=panel.example.com:9443 -v sbmaster:/var/lib/sbmaster ghcr.io/genguzzz/sbpanel:%s
+`, *version, *singbox, *version, *version)
 	os.WriteFile("dist/NOTES.md", []byte(notes), 0o644)
 }
 

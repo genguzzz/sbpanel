@@ -44,22 +44,14 @@ const (
 var (
 	ErrBusy        = errors.New("an upgrade is already running")
 	ErrUnsupported = errors.New("not running as a systemd or OpenRC service; upgrade with install.sh")
-	ErrContainer   = errors.New("running in a container; restart it to fetch the latest release (or the one in SBP_VERSION)")
+	ErrContainer   = errors.New("running in the sbpanel Docker image; upgrade by pulling a newer image tag and recreating the container")
 )
 
-// InContainer reports a Docker / Podman container. Its entrypoint fetches the release on every
-// start, so a restart is the upgrade and the panel's binary swap doesn't apply.
-func InContainer() bool {
-	if os.Getenv("SBP_CONTAINER") == "1" {
-		return true
-	}
-	for _, f := range []string{"/.dockerenv", "/run/.containerenv"} {
-		if _, err := os.Stat(f); err == nil {
-			return true
-		}
-	}
-	return false
-}
+// InContainer reports the sbpanel image (it sets SBP_CONTAINER=1). Its entrypoint fetches the
+// release on every start, so a restart is the upgrade and the panel's binary swap doesn't apply.
+// Being in some other container (/.dockerenv, LXC) is not enough: an install.sh setup with
+// systemd inside one upgrades like any other.
+func InContainer() bool { return os.Getenv("SBP_CONTAINER") == "1" }
 
 // Plan describes one upgrade. Start writes it; the helper executes it.
 type Plan struct {

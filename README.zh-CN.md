@@ -89,20 +89,6 @@ sbmaster upgrade                 # 最新版本；可加 --version vX.Y.Z、--ro
 sbnode upgrade
 ```
 
-**Docker**：`ghcr.io/genguzzz/sbpanel`（amd64 / arm64）是一个不含 sbpanel 程序的小型运行环境镜像。每次启动时按 `SBP_VERSION`（默认 `latest`，也可写 `v0.4.0` 这样的版本）下载发布包，用 `checksums.txt` 校验后缓存在数据卷里，所以 GitHub 不通时容器也能启动。`SBP_MIRROR=https://<你的 GitHub 代理>/` 可让下载走代理。现成的 compose 文件见 [deploy/docker/compose.yml](deploy/docker/compose.yml)。
-```bash
-# 面板：Web 界面在 127.0.0.1:8080（前面加 HTTPS 反代），节点连接 9443
-docker run -d --name sbmaster --restart unless-stopped -p 127.0.0.1:8080:8080 -p 9443:9443 \
-  -e SBM_PUBLIC_GRPC=panel.example.com:9443 -v sbmaster:/var/lib/sbmaster ghcr.io/genguzzz/sbpanel
-docker logs sbmaster | grep -i password      # 初始管理员密码（也可用 SBM_ADMIN_PASSWORD 指定）
-
-# 节点：使用主机网络，面板分配的入站端口才能直接访问；首次启动时自动注册
-docker run -d --name sbnode --restart unless-stopped --network host --cap-add NET_ADMIN \
-  -e SBN_MASTER=panel.example.com:9443 -e SBN_TOKEN=<一次性令牌> -e SBN_CA_SHA256=<CA 指纹> \
-  -v sbnode:/var/lib/sbnode ghcr.io/genguzzz/sbpanel node
-```
-重启容器即可升级（`docker restart sbmaster`）；若固定了 `SBP_VERSION`，修改后重建容器。面板会显示这条命令而不是一键升级。其他命令可直接执行，如 `docker exec -it sbmaster sbmaster reset-admin --user admin --password -`。
-
 **找回管理员账号**
 ```bash
 sbmaster reset-admin --user admin --password -                  # 从标准输入读取新密码
@@ -113,6 +99,43 @@ sbmaster reset-admin --user alice --rename admin --password -   # 同时改用�
 - 只迁移用户：`sbmaster import-3xui --users-only --json export.json`。用户名、UUID、密码、额度、到期时间、subId 都保持不变，原来的 `/sub/<subId>` 订阅链接继续可用。
 - 连同入站一起迁移：`--node <ID> --db /etc/x-ui/x-ui.db`。
 - 两种方式都可以先加 `--dry-run` 预览。
+
+### Docker
+
+镜像 `ghcr.io/genguzzz/sbpanel`（amd64 / arm64）可以运行面板（`master`）或节点（`node`）。它只是一个很小的运行环境：启动时下载 sbpanel 发布包，用发布页的 `checksums.txt` 校验后缓存在数据卷里，所以 GitHub 不通时也能启动。
+
+| 标签 | 运行的版本 |
+|---|---|
+| `:v0.4.1`、`:0.4` | 该版本（推荐，面板和节点用同一个标签） |
+| `:latest` | 最新版本，每次启动时检查 |
+
+`SBP_VERSION=vX.Y.Z` 可覆盖版本，`SBP_MIRROR=https://<你的 GitHub 代理>/` 让下载走代理。
+
+**面板**：使用主机网络，Web 界面只监听本机，前面加 HTTPS 反代（nginx / Caddy），节点连接 9443：
+```bash
+docker run -d --name sbmaster --restart unless-stopped --network host \
+  -e SBM_WEB=127.0.0.1:8080 -e SBM_PUBLIC_GRPC=panel.example.com:9443 \
+  -v sbmaster:/var/lib/sbmaster ghcr.io/genguzzz/sbpanel:v0.4.1
+docker logs sbmaster 2>&1 | grep -i password    # 初始管理员密码（也可在首次启动时用 SBM_ADMIN_PASSWORD 指定）
+```
+防火墙放行 9443/tcp。面板配置都是 `SBM_*` 环境变量：`SBM_WEB`、`SBM_GRPC`（默认 `:9443`）、`SBM_PUBLIC_GRPC`（节点连接的地址，会显示在「添加节点」里）、`SBM_TZ`、`SBM_ADMIN_PASSWORD`。
+
+**节点**：在面板「节点 → 添加节点 → **Docker**」里复制命令，到节点服务器上执行，形如：
+```bash
+docker run -d --name sbnode --restart unless-stopped --network host --cap-add NET_ADMIN \
+  -e SBN_MASTER=panel.example.com:9443 -e SBN_TOKEN=<一次性令牌> \
+  -e SBN_CA_SHA256=<CA 指纹> \
+  -v sbnode:/var/lib/sbnode ghcr.io/genguzzz/sbpanel:v0.4.1 node
+```
+节点首次启动时完成接入（令牌只能用一次，之后的启动复用数据卷里的证书），几秒内在面板显示在线。如果节点和面板在同一台机器上，请在节点设置里填写公网地址，订阅里才会是服务器地址而不是 127.0.0.1。
+
+**为什么用主机网络**：入站随时在面板里创建，端口是任意的 TCP / UDP。用 bridge 网络时，每个端口都要在创建容器时映射出来，新建的入站就访问不到。端口映射还可能丢失客户端的真实地址（IPv6、rootless Docker、同机连接）：流量统计按用户计，总量不受影响，但按 IP 的统计、设备数限制和实时连接会显示成 Docker 的地址。对面板来说，主机网络能让它在本机反代后面拿到访客的真实地址，以及节点的真实地址。
+
+**Compose**：[deploy/docker/compose.yml](deploy/docker/compose.yml) 里有两个服务（`docker compose up -d`；同机再跑节点加 `--profile node`）。
+
+**升级**：改镜像标签（或拉取 `:latest`）后重建容器：`docker compose pull && docker compose up -d --force-recreate`，或 `docker pull …` + `docker rm -f` + 上面的 `docker run`。数据保存在数据卷里。回退同理，换回上一个标签即可。「设置 → 版本更新」会显示这条命令，而不是一键升级。先升级面板，再升级节点。
+
+**其他命令**在容器里执行，如 `docker exec -it sbmaster sbmaster reset-admin --user admin --password -`。
 
 ## API 与 AI 智能体
 

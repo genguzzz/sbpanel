@@ -9,7 +9,7 @@ import { C } from '../../i18n/common'
 import { U } from '../../i18n/updates'
 
 const INSTALL_UPGRADE = 'curl -fsSL https://raw.githubusercontent.com/genguzzz/sbpanel/main/install.sh | sh -s -- upgrade master'
-const DOCKER_UPGRADE = 'docker restart sbmaster'
+const DOCKER_UPGRADE = 'docker compose pull && docker compose up -d --force-recreate'
 
 export const updateQuery = (busy: boolean) => ({
   queryKey: ['update'],

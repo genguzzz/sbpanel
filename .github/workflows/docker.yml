@@ -24,11 +24,23 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
+      # a release tag gets :vX.Y.Z and :X.Y (pinned to that release through SBP_VERSION); :latest
+      # (main or a non-pre release) runs the newest release on every start
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern=v{{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ github.ref_type == 'branch' || !contains(github.ref_name, '-') }}
       - uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
+          build-args: SBP_VERSION=${{ github.ref_type == 'tag' && github.ref_name || 'latest' }}
           push: true
-          tags: ghcr.io/${{ github.repository }}:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

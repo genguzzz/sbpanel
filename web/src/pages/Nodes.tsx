@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, nodeUsed, type Node, type Enroll, type Template, type TrafficMode } from '../lib/api'
+import { api, nodeUsed, type Node, type Enroll, type Template, type TrafficMode, type UpdateState } from '../lib/api'
 import { bytes, parseSize, dateTime } from '../lib/fmt'
 import { useRoute, go, replace, withParams } from '../lib/router'
 import { useAction } from '../lib/actions'
@@ -104,7 +104,7 @@ function AddNodeWizard({ isOpen, initial, onClose }: { isOpen: boolean; initial:
   const [name, setName] = useState(initial.name ?? '')
   const [pubAddr, setPubAddr] = useState('')
   const [enroll, setEnroll] = useState<Enroll | null>(initial.enroll ?? null)
-  const [how, setHow] = useState<'script' | 'manual'>('script')
+  const [how, setHow] = useState<'script' | 'docker' | 'manual'>('script')
   const [now, setNow] = useState(() => Date.now() / 1000)
   useEffect(() => { const t = setInterval(() => setNow(Date.now() / 1000), 1000); return () => clearInterval(t) }, [])
   const create = useAction({
@@ -122,7 +122,11 @@ function AddNodeWizard({ isOpen, initial, onClose }: { isOpen: boolean; initial:
   useEffect(() => { if (step === 2 && enrolled) setStep(3) }, [step, enrolled])
   const expired = !!enroll && now > enroll.expires_at && !enrolled
   const dir = '/var/lib/sbnode'
-  const scriptCmd = enroll ? `sudo bash deploy/install-node.sh ./sbnode-linux-amd64 "${enroll.command}"` : ''
+  const scriptCmd = enroll ? `curl -fsSL https://raw.githubusercontent.com/genguzzz/sbpanel/main/install.sh | sh -s -- node \\\n  --master ${enroll.master} --token ${enroll.token} --ca-sha256 ${enroll.ca_sha256}` : ''
+  // nodes run the panel's release (dev builds: :latest)
+  const upd = useQuery({ queryKey: ['update'], queryFn: () => api<UpdateState>('/update'), retry: false, staleTime: 600_000 })
+  const image = `ghcr.io/genguzzz/sbpanel:${upd.data?.release ? upd.data.current : 'latest'}`
+  const dockerCmd = enroll ? `docker run -d --name sbnode --restart unless-stopped --network host --cap-add NET_ADMIN \\\n  -e SBN_MASTER=${enroll.master} -e SBN_TOKEN=${enroll.token} \\\n  -e SBN_CA_SHA256=${enroll.ca_sha256} \\\n  -v sbnode:/var/lib/sbnode ${image} node` : ''
   const manualCmd = enroll ? `sbnode ${enroll.command.replace(/^sbnode /, '')} --dir ${dir}\nsbnode run --dir ${dir}` : ''
 
   const footer = step === 1 ? <>
@@ -167,12 +171,18 @@ function AddNodeWizard({ isOpen, initial, onClose }: { isOpen: boolean; initial:
         )}
         {step === 2 && enroll && (
           <div className="flex flex-col gap-4 text-[13px]">
-            <Segmented label={T().method} value={how} onChange={setHow} options={[{ id: 'script', label: T().script }, { id: 'manual', label: T().manual }]} />
+            <Segmented label={T().method} value={how} onChange={setHow} options={[{ id: 'script', label: T().script }, { id: 'docker', label: T().docker }, { id: 'manual', label: T().manual }]} />
             {how === 'script' ? (
               <div key="s" className="flex animate-content-in flex-col gap-2">
                 <p className="text-subtle">{T().scriptIntro()}</p>
                 <Code text={scriptCmd} />
                 <p className="text-xs text-muted">{T().scriptNote()}</p>
+              </div>
+            ) : how === 'docker' ? (
+              <div key="d" className="flex animate-content-in flex-col gap-2">
+                <p className="text-subtle">{T().dockerIntro}</p>
+                <Code text={dockerCmd} />
+                <p className="text-xs text-muted">{T().dockerNote()}</p>
               </div>
             ) : (
               <div key="m" className="flex animate-content-in flex-col gap-2">
