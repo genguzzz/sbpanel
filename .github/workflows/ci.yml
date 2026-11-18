@@ -21,6 +21,8 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
       - name: web
         run: cd web && pnpm install --frozen-lockfile && pnpm build
+      - name: UI preset fixture is current
+        run: node --experimental-strip-types web/scripts/preset-fixture.ts --check
       - name: vet
         run: go vet -tags with_quic,with_utls,with_acme ./...
       - name: test

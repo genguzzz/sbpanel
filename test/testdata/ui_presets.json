@@ -1,0 +1,582 @@
+[
+  {
+    "id": "vless-reality",
+    "cert": "",
+    "type": "vless",
+    "udp": false,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "_flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "target.test",
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "target.test",
+            "server_port": 443
+          },
+          "private_key": "@PRIV",
+          "short_id": [
+            "@SID"
+          ]
+        }
+      }
+    },
+    "client": {
+      "security": "reality",
+      "sni": "target.test",
+      "public_key": "@PUB",
+      "short_id": "@SID",
+      "flow": "xtls-rprx-vision",
+      "fingerprint": "chrome"
+    }
+  },
+  {
+    "id": "vmess-ws-tls",
+    "cert": "path",
+    "type": "vmess",
+    "udp": false,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test",
+        "certificate_path": "@CERT",
+        "key_path": "@KEY"
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/ws"
+      }
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test",
+      "network": "ws",
+      "path": "/ws"
+    }
+  },
+  {
+    "id": "vmess-ws-tls",
+    "cert": "panel",
+    "type": "vmess",
+    "udp": false,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test"
+      },
+      "_cert": "@CERT_ID",
+      "transport": {
+        "type": "ws",
+        "path": "/ws"
+      }
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test",
+      "network": "ws",
+      "path": "/ws"
+    }
+  },
+  {
+    "id": "vmess-ws-tls",
+    "cert": "acme",
+    "type": "vmess",
+    "udp": false,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test",
+        "acme": {
+          "domain": [
+            "sb.test"
+          ],
+          "email": "admin@sb.test",
+          "data_directory": "/var/lib/sbnode/acme"
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/ws"
+      }
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test",
+      "network": "ws",
+      "path": "/ws"
+    }
+  },
+  {
+    "id": "vless-ws-tls",
+    "cert": "path",
+    "type": "vless",
+    "udp": false,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test",
+        "certificate_path": "@CERT",
+        "key_path": "@KEY"
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/ws"
+      }
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test",
+      "network": "ws",
+      "path": "/ws"
+    }
+  },
+  {
+    "id": "vless-ws-tls",
+    "cert": "panel",
+    "type": "vless",
+    "udp": false,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test"
+      },
+      "_cert": "@CERT_ID",
+      "transport": {
+        "type": "ws",
+        "path": "/ws"
+      }
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test",
+      "network": "ws",
+      "path": "/ws"
+    }
+  },
+  {
+    "id": "vless-ws-tls",
+    "cert": "acme",
+    "type": "vless",
+    "udp": false,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test",
+        "acme": {
+          "domain": [
+            "sb.test"
+          ],
+          "email": "admin@sb.test",
+          "data_directory": "/var/lib/sbnode/acme"
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/ws"
+      }
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test",
+      "network": "ws",
+      "path": "/ws"
+    }
+  },
+  {
+    "id": "vless-grpc-tls",
+    "cert": "path",
+    "type": "vless",
+    "udp": false,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test",
+        "certificate_path": "@CERT",
+        "key_path": "@KEY",
+        "alpn": [
+          "h2"
+        ]
+      },
+      "transport": {
+        "type": "grpc",
+        "service_name": "grpc"
+      }
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test",
+      "network": "grpc",
+      "service": "grpc"
+    }
+  },
+  {
+    "id": "vless-grpc-tls",
+    "cert": "panel",
+    "type": "vless",
+    "udp": false,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test",
+        "alpn": [
+          "h2"
+        ]
+      },
+      "_cert": "@CERT_ID",
+      "transport": {
+        "type": "grpc",
+        "service_name": "grpc"
+      }
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test",
+      "network": "grpc",
+      "service": "grpc"
+    }
+  },
+  {
+    "id": "vless-grpc-tls",
+    "cert": "acme",
+    "type": "vless",
+    "udp": false,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test",
+        "acme": {
+          "domain": [
+            "sb.test"
+          ],
+          "email": "admin@sb.test",
+          "data_directory": "/var/lib/sbnode/acme"
+        },
+        "alpn": [
+          "h2"
+        ]
+      },
+      "transport": {
+        "type": "grpc",
+        "service_name": "grpc"
+      }
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test",
+      "network": "grpc",
+      "service": "grpc"
+    }
+  },
+  {
+    "id": "trojan-tls",
+    "cert": "path",
+    "type": "trojan",
+    "udp": false,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test",
+        "certificate_path": "@CERT",
+        "key_path": "@KEY"
+      }
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test"
+    }
+  },
+  {
+    "id": "trojan-tls",
+    "cert": "panel",
+    "type": "trojan",
+    "udp": false,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test"
+      },
+      "_cert": "@CERT_ID"
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test"
+    }
+  },
+  {
+    "id": "trojan-tls",
+    "cert": "acme",
+    "type": "trojan",
+    "udp": false,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test",
+        "acme": {
+          "domain": [
+            "sb.test"
+          ],
+          "email": "admin@sb.test",
+          "data_directory": "/var/lib/sbnode/acme"
+        }
+      }
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test"
+    }
+  },
+  {
+    "id": "ss2022",
+    "cert": "",
+    "type": "shadowsocks",
+    "udp": false,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "network": "tcp",
+      "method": "2022-blake3-aes-128-gcm",
+      "password": "dGVzdHRlc3R0ZXN0dGVzdA=="
+    },
+    "client": {}
+  },
+  {
+    "id": "hysteria2",
+    "cert": "path",
+    "type": "hysteria2",
+    "udp": true,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test",
+        "certificate_path": "@CERT",
+        "key_path": "@KEY",
+        "alpn": [
+          "h3"
+        ]
+      }
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test"
+    }
+  },
+  {
+    "id": "hysteria2",
+    "cert": "panel",
+    "type": "hysteria2",
+    "udp": true,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test",
+        "alpn": [
+          "h3"
+        ]
+      },
+      "_cert": "@CERT_ID"
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test"
+    }
+  },
+  {
+    "id": "hysteria2",
+    "cert": "acme",
+    "type": "hysteria2",
+    "udp": true,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test",
+        "acme": {
+          "domain": [
+            "sb.test"
+          ],
+          "email": "admin@sb.test",
+          "data_directory": "/var/lib/sbnode/acme"
+        },
+        "alpn": [
+          "h3"
+        ]
+      }
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test"
+    }
+  },
+  {
+    "id": "tuic",
+    "cert": "path",
+    "type": "tuic",
+    "udp": true,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test",
+        "certificate_path": "@CERT",
+        "key_path": "@KEY",
+        "alpn": [
+          "h3"
+        ]
+      },
+      "congestion_control": "bbr"
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test"
+    }
+  },
+  {
+    "id": "tuic",
+    "cert": "panel",
+    "type": "tuic",
+    "udp": true,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test",
+        "alpn": [
+          "h3"
+        ]
+      },
+      "_cert": "@CERT_ID",
+      "congestion_control": "bbr"
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test"
+    }
+  },
+  {
+    "id": "tuic",
+    "cert": "acme",
+    "type": "tuic",
+    "udp": true,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test",
+        "acme": {
+          "domain": [
+            "sb.test"
+          ],
+          "email": "admin@sb.test",
+          "data_directory": "/var/lib/sbnode/acme"
+        },
+        "alpn": [
+          "h3"
+        ]
+      },
+      "congestion_control": "bbr"
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test"
+    }
+  },
+  {
+    "id": "anytls",
+    "cert": "path",
+    "type": "anytls",
+    "udp": false,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test",
+        "certificate_path": "@CERT",
+        "key_path": "@KEY"
+      }
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test"
+    }
+  },
+  {
+    "id": "anytls",
+    "cert": "panel",
+    "type": "anytls",
+    "udp": false,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test"
+      },
+      "_cert": "@CERT_ID"
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test"
+    }
+  },
+  {
+    "id": "anytls",
+    "cert": "acme",
+    "type": "anytls",
+    "udp": false,
+    "options": {
+      "listen": "::",
+      "listen_port": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "sb.test",
+        "acme": {
+          "domain": [
+            "sb.test"
+          ],
+          "email": "admin@sb.test",
+          "data_directory": "/var/lib/sbnode/acme"
+        }
+      }
+    },
+    "client": {
+      "security": "tls",
+      "sni": "sb.test"
+    }
+  }
+]

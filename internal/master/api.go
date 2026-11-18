@@ -152,6 +152,7 @@ func (m *Master) routes() http.Handler {
 	mux.HandleFunc("PATCH /api/inbounds/{id}", a(m.apiUpdateInbound))
 	mux.HandleFunc("DELETE /api/inbounds/{id}", a(m.apiDeleteInbound))
 	mux.HandleFunc("POST /api/tools/reality-keypair", a(m.apiRealityKeypair))
+	mux.HandleFunc("GET /api/tools/dns-check", a(m.apiDNSCheck))
 
 	mux.HandleFunc("GET /api/groups", a(m.apiGroups))
 	mux.HandleFunc("POST /api/groups", a(m.apiCreateGroup))

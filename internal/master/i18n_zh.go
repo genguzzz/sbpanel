@@ -199,6 +199,7 @@ var zhCatalog = map[string]string{
 	"reset_day must be 1-28":                                      "重置日必须在 1–28 之间",
 	"traffic_mode must be both, out, in or max":                   "计费方式必须是 both、out、in 或 max",
 	"client_ip must be empty, ipv6 or ipv4":                       "客户端优先必须为空、ipv6 或 ipv4",
+	"host must be a domain name":                                  "请填写域名（不能是 IP）",
 	"created_at must be a past unix time":                         "created_at 必须是过去的 unix 时间",
 	"Unknown log level":                                           "未知的日志级别",
 	"UDP timeout must be a duration between 10s and 24h, e.g. 5m": "UDP 超时须在 10s 到 24h 之间，例如 5m",

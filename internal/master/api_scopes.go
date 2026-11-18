@@ -69,6 +69,7 @@ var routeScopes = map[string]string{
 	"PATCH /api/inbounds/{id}":        ScopeNodesWrite,
 	"DELETE /api/inbounds/{id}":       ScopeNodesWrite,
 	"POST /api/tools/reality-keypair": ScopeNodesWrite,
+	"GET /api/tools/dns-check":        ScopeRead,
 
 	// groups / hosts / templates
 	"GET /api/groups":                ScopeRead,
