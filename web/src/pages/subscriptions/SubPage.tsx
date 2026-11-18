@@ -197,7 +197,8 @@ function Preview({ theme, version }: { theme: SubTheme; version: string }) {
       <div className={cx('mx-auto overflow-hidden rounded-[16px] border bg-base', !wide && 'max-w-[377px]')}>
         {/* The page is served with a CSP sandbox (opaque origin). Its prefers-color-scheme follows this element's color-scheme. */}
         <div className={cx(wide && 'overflow-x-auto')}>
-          <iframe key={src + scheme} title={t.previewTitle(theme.name)} src={src} style={scheme === 'auto' ? undefined : { colorScheme: scheme }}
+          <iframe key={src + scheme} title={t.previewTitle(theme.name)} src={src} referrerPolicy="no-referrer"
+            sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals allow-top-navigation-to-custom-protocols" style={scheme === 'auto' ? undefined : { colorScheme: scheme }}
             className={cx('block h-[680px] border-0', wide ? 'w-[1100px] max-w-none origin-top-left' : 'w-full')} />
         </div>
       </div>

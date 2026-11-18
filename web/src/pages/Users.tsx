@@ -5,6 +5,7 @@ import { api, type User, type TopRow, type SeriesResp, type Group, type SubInfo,
 import { D as LD } from '../i18n/limits'
 import { bytes, date, dateTime, parseSize, ago, expiresIn, GB, DAY } from '../lib/fmt'
 import { useRoute, go, replace, withParams, href } from '../lib/router'
+import { httpUrl } from '../lib/url'
 import { flashRows, leaveRows, settleRows, useAction, useApplyTracker, useRowFx, useSubUrl, useUserBatch, useUserPatch } from '../lib/actions'
 import { filterDefs, sortDefs, matchQuery, usedOf, usedPct, lastSeenOf, USERNAME_RE, type FilterId, type SortId } from '../lib/users'
 import {
@@ -661,7 +662,7 @@ function CreatedBody({ c, sub }: { c: { id: number; username: string }; sub?: Su
         <div className="flex items-center justify-center gap-2 sm:justify-start"><span className="grid h-6 w-6 animate-check place-items-center rounded-full bg-good/15 text-good">✓</span><b className="text-[15px]">{c.username}</b></div>
         <p className="text-[13px] text-subtle">{t.shareHint}</p>
         <div className="rounded-[10px] border bg-base px-3 py-2 text-left">{sub ? <CopyText text={sub.url} className="w-full" /> : <Skeleton className="h-4" />}</div>
-        {sub && <a href={sub.formats.page} target="_blank" rel="noreferrer" className="text-[13px] text-accent hover:underline">{t.openPortal}</a>}
+        {sub && <a href={httpUrl(sub.formats.page)} target="_blank" rel="noopener noreferrer" className="text-[13px] text-accent hover:underline">{t.openPortal}</a>}
       </div>
     </div>
   )
@@ -1084,7 +1085,7 @@ function SubPanel({ s, busy }: { s: SubInfo; busy?: boolean }) {
             <div className="rounded-[10px] border bg-base px-3 py-2"><CopyText text={s.url} className="w-full" /></div>
             <div className="flex flex-wrap items-center gap-2">
               <CopyButton label={t.copySub} variant="primary" text={s.url} />
-              <a href={s.formats.page} target="_blank" rel="noreferrer" className="inline-flex h-7 items-center rounded-full px-3 text-[13px] text-accent hover:bg-overlay">{t.previewPortal}</a>
+              <a href={httpUrl(s.formats.page)} target="_blank" rel="noopener noreferrer" className="inline-flex h-7 items-center rounded-full px-3 text-[13px] text-accent hover:bg-overlay">{t.previewPortal}</a>
             </div>
             <p className="text-xs text-muted">{t.universalHint}</p>
           </div>

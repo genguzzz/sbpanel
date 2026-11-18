@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type NodeUpdate, type Settings, type UpdateState } from '../../lib/api'
 import { useAction } from '../../lib/actions'
 import { ago, dateTime } from '../../lib/fmt'
+import { httpUrl } from '../../lib/url'
 import { Badge, Button, Callout, Card, Confirm, CopyText, Field, RelTime, Spinner, Switch, cx, useToast } from '../../ui/kit'
 import { useT } from '../../i18n'
 import { C } from '../../i18n/common'
@@ -96,7 +97,7 @@ export function UpdatesSettings() {
             <Info label={t.latest} sub={d.check_error ? <span className="text-bad">{t.checkFailed}: {d.check_error}</span>
               : d.checked_at ? <RelTime ts={d.checked_at} text={t.checked(ago(d.checked_at))} /> : t.never}>
               {latest ? <>
-                <a href={latest.url} target="_blank" rel="noreferrer" className="font-mono text-[15px] text-accent-text hover:underline">{latest.tag}</a>
+                <a href={httpUrl(latest.url)} target="_blank" rel="noopener noreferrer" className="font-mono text-[15px] text-accent-text hover:underline">{latest.tag}</a>
                 {d.has_update && <Badge tone="accent" dot>{t.newVersion(latest.tag)}</Badge>}
                 {!!latest.published && <span className="text-xs text-muted">{dateTime(Date.parse(latest.published) / 1000)}</span>}
               </> : <span className="text-muted">—</span>}
