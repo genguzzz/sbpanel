@@ -28,7 +28,8 @@
         if (ui.radius && ui.radius !== 'default') d.dataset.radius = ui.radius
         if (ui.density && ui.density !== 'default') d.dataset.density = ui.density
         var a = ui.accent, hex = /^#[0-9a-f]{6}$/i
-        if (a && a.light && a.dark && hex.test(a.light.accent) && hex.test(a.dark.accent)) {
+        var ok = function (x) { return x && hex.test(x.accent) && hex.test(x.accentText) && hex.test(x.onAccent) }
+        if (a && ok(a.light) && ok(a.dark)) {
           var v = function (x) { return '--accent:' + x.accent + ';--accent-text:' + x.accentText + ';--on-accent:' + x.onAccent + ';--focus:' + x.accentText + ';--pine:' + x.accent + ';' }
           var s = document.createElement('style'); s.id = 'sbp-accent'
           s.textContent = ':root:root:root:root{' + v(a.light) + '}@media (prefers-color-scheme: dark){:root:root:root:root:not([data-theme="light"]){' + v(a.dark) + '}}:root:root:root:root[data-theme="dark"]{' + v(a.dark) + '}'
