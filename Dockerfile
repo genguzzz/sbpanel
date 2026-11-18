@@ -5,7 +5,7 @@
 #   docker run -d --network host -e SBM_WEB=127.0.0.1:8080 -v sbmaster:/var/lib/sbmaster ghcr.io/genguzzz/sbpanel
 #   docker run -d --network host -v sbnode:/var/lib/sbnode \
 #     -e SBN_MASTER=... -e SBN_TOKEN=... -e SBN_CA_SHA256=... ghcr.io/genguzzz/sbpanel node
-FROM alpine:3.22
+FROM alpine:3.24
 # release tags of the image pin the release they run (ghcr.io/genguzzz/sbpanel:v0.4.1); :latest follows
 ARG SBP_VERSION=latest
 RUN apk add --no-cache ca-certificates tzdata curl tar
