@@ -1,5 +1,6 @@
-# Tag vX.Y.Z (only maintainers can push v* tags: see the repository's tag ruleset) -> tests, archives,
-# checksums, build provenance attestations, GitHub release. No caches: a release never restores
+# Tag vX.Y.Z (only maintainers can push v* tags: see the repository's tag ruleset) -> changelog check,
+# tests, archives, checksums, build provenance attestations, GitHub release (notes: the tag's
+# CHANGELOG.md section, then install instructions). No caches: a release never restores
 # state that other workflows (e.g. pull requests) could have written.
 name: release
 on:
@@ -30,6 +31,9 @@ jobs:
         with:
           node-version: 22
           package-manager-cache: false
+      # the release notes list the changes: fail now if CHANGELOG.md has no section for this tag
+      - name: changelog
+        run: go run ./tools/dist -version "$GITHUB_REF_NAME" -notes-only
       - name: test
         run: |
           cd web && pnpm install --frozen-lockfile && pnpm build && cd ..

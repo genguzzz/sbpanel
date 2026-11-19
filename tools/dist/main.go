@@ -1,5 +1,6 @@
 // dist builds release archives: dist/sbpanel_<ver>_linux_<arch>.tar.gz with sbmaster,
-// sbnode, install.sh, deploy/, README.md and LICENSE, plus checksums.txt and NOTES.md.
+// sbnode, install.sh, deploy/, README.md and LICENSE, plus checksums.txt and NOTES.md (the
+// version's CHANGELOG.md section, then how to install).
 package main
 
 import (
@@ -25,6 +26,7 @@ func main() {
 	ldflags := flag.String("ldflags", "", "go -ldflags")
 	tags := flag.String("tags", "", "go build tags")
 	arches := flag.String("arches", "amd64 arm64", "architectures")
+	notesOnly := flag.Bool("notes-only", false, "only write dist/NOTES.md (fails if CHANGELOG.md has no section for -version)")
 	flag.Parse()
 
 	if err := os.MkdirAll("dist", 0o755); err != nil {
@@ -34,6 +36,13 @@ func main() {
 	old, _ := filepath.Glob("dist/sbpanel_*.tar.gz")
 	for _, f := range append(old, "dist/checksums.txt", "dist/NOTES.md") {
 		os.Remove(f)
+	}
+	// first, so a release without its changelog fails before anything is built
+	if err := writeNotes(*version, *singbox); err != nil {
+		log.Fatal(err)
+	}
+	if *notesOnly {
+		return
 	}
 	var sums []string
 	for _, arch := range strings.Fields(*arches) {
@@ -76,7 +85,27 @@ func main() {
 		log.Printf("built %s", out)
 	}
 	os.WriteFile("dist/checksums.txt", []byte(strings.Join(sums, "\n")+"\n"), 0o644)
-	notes := fmt.Sprintf(`sbpanel %s (sing-box %s)
+}
+
+// writeNotes writes dist/NOTES.md: the changes from CHANGELOG.md, then how to install. A release
+// (vX.Y.Z) must have its own section; other builds (dev, describe output) fall back to Unreleased.
+func writeNotes(version, singbox string) error {
+	b, err := os.ReadFile("CHANGELOG.md")
+	if err != nil {
+		return err
+	}
+	changes := changelogSection(string(b), version)
+	if changes == "" && !releaseTag(version) {
+		changes = changelogSection(string(b), "Unreleased")
+	}
+	if changes == "" {
+		return fmt.Errorf("CHANGELOG.md has no entries under \"## %s\": list the changes before tagging", version)
+	}
+	notes := fmt.Sprintf(`## sbpanel %s (sing-box %s)
+
+%s
+
+## Install
 
 Install the panel (master):
 
@@ -88,12 +117,41 @@ Add a node: copy the command from the panel (节点 → 添加节点), or:
 
 Upgrade everything on a machine: `+"`install.sh upgrade`"+`, or from the panel (Settings → Updates).
 
-Docker (amd64 / arm64): `+"`ghcr.io/genguzzz/sbpanel:%s`"+` runs this release (see "Docker" in the README):
+Docker (amd64 / arm64): `+"`ghcr.io/genguzzz/sbpanel`"+` downloads the newest release on every start; add `+"`-e SBP_VERSION=%s`"+` to pin this one (see "Docker" in the README):
 
     docker run -d --name sbmaster --restart unless-stopped --network host -e SBM_WEB=127.0.0.1:8080 \
-      -e SBM_PUBLIC_GRPC=panel.example.com:9443 -v sbmaster:/var/lib/sbmaster ghcr.io/genguzzz/sbpanel:%s
-`, *version, *singbox, *version, *version)
-	os.WriteFile("dist/NOTES.md", []byte(notes), 0o644)
+      -e SBM_PUBLIC_GRPC=panel.example.com:9443 -v sbmaster:/var/lib/sbmaster ghcr.io/genguzzz/sbpanel
+`, version, singbox, changes, version)
+	return os.WriteFile("dist/NOTES.md", []byte(notes), 0o644)
+}
+
+// changelogSection returns the body under "## <version>" (a heading may go on, e.g. "## v0.4.6 - 2026-11-20"),
+// up to the next "## " heading, trimmed.
+func changelogSection(doc, version string) string {
+	var out []string
+	in := false
+	for _, line := range strings.Split(doc, "\n") {
+		if strings.HasPrefix(line, "## ") {
+			if in {
+				break
+			}
+			f := strings.Fields(strings.TrimPrefix(line, "## "))
+			in = len(f) > 0 && f[0] == version
+			continue
+		}
+		if in {
+			out = append(out, line)
+		}
+	}
+	return strings.TrimSpace(strings.Join(out, "\n"))
+}
+
+// releaseTag: vX.Y.Z with optional -pre, nothing else (git describe adds -N-gHASH).
+func releaseTag(v string) bool {
+	var a, b, c int
+	var rest string
+	n, _ := fmt.Sscanf(v, "v%d.%d.%d%s", &a, &b, &c, &rest)
+	return n >= 3 && !strings.Contains(rest, "-g") && !strings.HasSuffix(v, "-dirty")
 }
 
 func writeTarGz(path string, files map[string]string) error {

@@ -24,7 +24,7 @@ export const U = dict({
   upgrade: 'Upgrade', offline: 'Offline', needsInstall: 'Upgrade once with install.sh to enable', needsPull: 'Docker: restart the container to upgrade',
   containerHint: 'It runs in Docker and fetches the newest release on every start (SBP_VERSION=vX.Y.Z pins one). Upgrade by restarting it:', noNodes: 'No nodes yet',
   nPreparing: 'Preparing…', nSent: 'Sent to node…', nDownloading: 'Downloading…', nApplying: 'Restarting…',
-  nUpgraded: 'Upgraded', nRolledBack: 'Rolled back', nFailed: 'Failed', sent: 'Upgrade started', pill: (v: string) => `${v} available`,
+  nUpgraded: 'Upgraded', nRolledBack: 'Rolled back', nFailed: 'Failed', sent: 'Upgrade started', pill: (v: string) => `${v} available`, pillNodes: (n: number, v: string) => `${n} node${n === 1 ? '' : 's'} can upgrade to ${v}`,
   saved: 'Saved',
 }, {
   panel: '面板', nodes: '节点', current: '当前版本', latest: '最新发布', devBuild: '开发版',
@@ -50,6 +50,6 @@ export const U = dict({
   upgrade: '升级', offline: '离线', needsInstall: '需先用 install.sh 升级一次', needsPull: 'Docker：重启容器即升级',
   containerHint: '它运行在 Docker 中，每次启动都会下载最新版本（SBP_VERSION=vX.Y.Z 可固定版本）。重启容器即可升级：', noNodes: '还没有节点',
   nPreparing: '准备中…', nSent: '已下发…', nDownloading: '下载中…', nApplying: '重启中…',
-  nUpgraded: '已升级', nRolledBack: '已回退', nFailed: '失败', sent: '已开始升级', pill: (v) => `${v} 可用`,
+  nUpgraded: '已升级', nRolledBack: '已回退', nFailed: '失败', sent: '已开始升级', pill: (v) => `${v} 可用`, pillNodes: (n, v) => `${n} 个节点可升级到 ${v}`,
   saved: '已保存',
 })

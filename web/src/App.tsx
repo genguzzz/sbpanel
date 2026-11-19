@@ -229,15 +229,17 @@ function NavLink({ it, active, badge }: { it: NavItem; active: boolean; badge?: 
   )
 }
 
-/** Header pill: a newer sbpanel release is out (panel or any node behind it). */
+/** Header pill: a newer sbpanel release is out (for the panel, or only for some nodes). */
 function UpdatePill() {
   const q = useQuery({ queryKey: ['update'], queryFn: () => api<UpdateState>('/update'), refetchInterval: 10 * 60_000, retry: false })
   const d = q.data
-  if (!d?.latest || !(d.has_update || d.nodes.some((n) => n.has_update))) return null
+  const behind = d?.nodes.filter((n) => n.has_update).length ?? 0
+  if (!d?.latest || !(d.has_update || behind)) return null
+  const label = d.has_update ? tr(U).pill(d.latest.tag) : tr(U).pillNodes(behind, d.latest.tag)
   return (
-    <a href={href('settings', { s: 'updates' })} title={tr(U).pill(d.latest.tag)}
+    <a href={href('settings', { s: 'updates' })} title={label}
       className="flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-accent/12 px-2.5 text-[13px] font-medium text-accent-text outline-none transition-colors duration-(--dur-2) hover:bg-accent/20 focus-visible:ring-2 focus-visible:ring-accent sm:px-3">
-      <span className="h-2 w-2 rounded-full bg-current" /><span className="hidden sm:inline">{tr(U).pill(d.latest.tag)}</span>
+      <span className="h-2 w-2 rounded-full bg-current" /><span className="hidden sm:inline">{label}</span>
     </a>
   )
 }
