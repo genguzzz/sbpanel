@@ -27,7 +27,7 @@ export const SH = dict({
   pageError: 'Something went wrong on this page', retry: 'Retry',
   // login
   tagline: 'sing-box proxy panel', username: 'Username', password: 'Password', totp: 'Two-factor code', totpHint: 'The 6-digit code from your authenticator app',
-  signingIn: 'Signing in…', signIn: 'Sign in',
+  signingIn: 'Signing in…', signIn: 'Sign in', or: 'or', passkeySignIn: 'Sign in with a passkey',
 }, {
   gObserve: '观测', gUsers: '用户', gNodes: '节点与内核', gSystem: '系统',
   overview: '概览', traffic: '流量分析', live: '实时连接', events: '事件与审计', users: '用户', groups: '分组', limits: '流量限额',
@@ -51,7 +51,7 @@ export const SH = dict({
   scX: '选中当前用户', scAll: '全选当前筛选结果', scEsc: '取消选择 / 关闭弹窗',
   pageError: '页面出错了', retry: '重试',
   tagline: 'sing-box 代理管理面板', username: '用户名', password: '密码', totp: '两步验证码', totpHint: '验证器 App 中的 6 位数字',
-  signingIn: '登录中…', signIn: '登录',
+  signingIn: '登录中…', signIn: '登录', or: '或', passkeySignIn: '使用通行密钥登录',
 })
 
 /** Extra ⌘K search keywords per page, in the UI language (the English ids/keywords in App.tsx always match). */

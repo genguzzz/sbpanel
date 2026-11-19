@@ -302,7 +302,7 @@ func (m *Master) apiAudit(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, out)
 }
 
-// ResetAdmin sets a new password (creating the admin if needed) and clears 2FA.
+// ResetAdmin sets a new password (creating the admin if needed) and clears 2FA and passkeys.
 // RenameAdmin changes an admin's username (keeps password and 2FA).
 func (m *Master) RenameAdmin(from, to string) error {
 	res, err := m.db.Exec(`UPDATE admins SET username=? WHERE username=?`, to, from)
@@ -312,7 +312,8 @@ func (m *Master) RenameAdmin(from, to string) error {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("no admin named %q", from)
 	}
-	return nil
+	_, err = m.db.Exec(`UPDATE passkeys SET admin=? WHERE admin=?`, to, from)
+	return err
 }
 
 func (m *Master) ResetAdmin(user, password string) error {
@@ -322,5 +323,9 @@ func (m *Master) ResetAdmin(user, password string) error {
 	}
 	_, err = m.db.Exec(`INSERT INTO admins(username, pass_hash, created_at) VALUES(?,?,?)
 		ON CONFLICT(username) DO UPDATE SET pass_hash=excluded.pass_hash, totp_secret=''`, user, string(h), now())
+	if err != nil {
+		return err
+	}
+	_, err = m.db.Exec(`DELETE FROM passkeys WHERE admin=?`, user)
 	return err
 }

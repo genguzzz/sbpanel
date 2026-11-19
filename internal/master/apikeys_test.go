@@ -85,9 +85,10 @@ func TestRouteScopesComplete(t *testing.T) {
 			t.Errorf("apiDocs documents %q but no such route is registered", p)
 		}
 	}
-	// every GET under /api that needs auth is readable with the read scope (except key management/backup)
+	// every GET under /api that needs auth is readable with the read scope (except key management,
+	// backup and the admin's own sign-in credentials)
 	for p, s := range routeScopes {
-		if strings.HasPrefix(p, "GET /api/") && s != ScopeRead && s != scopeAny && p != "GET /api/tokens" && p != "GET /api/backup" {
+		if strings.HasPrefix(p, "GET /api/") && s != ScopeRead && s != scopeAny && p != "GET /api/tokens" && p != "GET /api/backup" && p != "GET /api/me/passkeys" {
 			t.Errorf("GET route %q requires %q, expected read", p, s)
 		}
 	}

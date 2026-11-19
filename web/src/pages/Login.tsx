@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Form } from 'react-aria-components'
 import { api, ApiError } from '../lib/api'
+import { isPasskeyCancel, passkeysSupported, signInWithPasskey } from '../lib/webauthn'
 import { Button, Field, LangSwitch } from '../ui/kit'
 import { useT } from '../i18n'
 import { SH } from '../i18n/shell'
@@ -12,7 +13,20 @@ export function Login({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false)
   const [needCode, setNeedCode] = useState(false)
   const [code, setCode] = useState('')
+  const [passkeyBusy, setPasskeyBusy] = useState(false)
   const t = useT(SH)
+  const passkey = async () => {
+    setPasskeyBusy(true)
+    setErr('')
+    try {
+      await signInWithPasskey()
+      onDone()
+    } catch (e) {
+      if (!isPasskeyCancel(e)) setErr((e as Error).message)
+    } finally {
+      setPasskeyBusy(false)
+    }
+  }
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setBusy(true)
@@ -48,6 +62,12 @@ export function Login({ onDone }: { onDone: () => void }) {
           {needCode && <Field label={t.totp} value={code} onChange={setCode} autoComplete="one-time-code" autoFocus description={t.totpHint} />}
           {err && <div className="rounded-[10px] bg-bad/10 px-3 py-2 text-[13px] text-bad">{err}</div>}
           <Button type="submit" variant="primary" isPending={busy} className="mt-1 h-10">{busy ? t.signingIn : t.signIn}</Button>
+          {passkeysSupported() && (
+            <>
+              <div className="flex items-center gap-3 text-[12px] text-subtle"><span className="h-px flex-1 bg-hl-med" />{t.or}<span className="h-px flex-1 bg-hl-med" /></div>
+              <Button isPending={passkeyBusy} isDisabled={busy} onPress={passkey} className="h-10">{t.passkeySignIn}</Button>
+            </>
+          )}
         </div>
       </Form>
     </div>

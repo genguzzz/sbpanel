@@ -86,6 +86,8 @@ type Master struct {
 	probes    *prober
 	metrics   *masterMetrics
 	upd       *updates // release checks and upgrades (update.go)
+
+	passkeyState passkeyCeremonies // begun passkey registrations / sign-ins (passkey.go)
 }
 
 func New(cfg Config) (*Master, error) {

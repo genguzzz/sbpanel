@@ -25,6 +25,14 @@ var routeScopes = map[string]string{
 	"GET /mcp":                  scopeKey,
 	"DELETE /mcp":               scopeKey,
 
+	// passkeys (passkey.go)
+	"GET /api/me/passkeys":                  scopeSession,
+	"POST /api/me/passkeys/register/begin":  scopeSession,
+	"POST /api/me/passkeys/register/finish": scopeSession,
+	"DELETE /api/me/passkeys/{id}":          scopeSession,
+	"POST /api/auth/passkey/begin":          scopePublic,
+	"POST /api/auth/passkey/finish":         scopePublic,
+
 	// API key management
 	"GET /api/tokens":         ScopeAdmin,
 	"POST /api/tokens":        ScopeAdmin,

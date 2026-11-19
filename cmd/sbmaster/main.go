@@ -151,7 +151,7 @@ func resetAdmin(args []string) {
 	if err := m.ResetAdmin(*user, *pw); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("password reset and 2FA cleared for", *user)
+	fmt.Println("password reset, 2FA and passkeys cleared for", *user)
 }
 
 // sbmaster upgrade [--version vX.Y.Z] [--rollback] [--mirror URL]: upgrade the installed service

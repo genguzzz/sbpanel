@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FileTrigger } from 'react-aria-components'
 import { useAction } from '../lib/actions'
 import { api, type ImportReport, type Node, type Settings } from '../lib/api'
+import { addPasskey, defaultPasskeyName, isPasskeyCancel, passkeysSupported, type Passkey } from '../lib/webauthn'
+import { dateTime } from '../lib/fmt'
 import { useRoute, href } from '../lib/router'
 import { Badge, Button, Callout, Card, Checkbox, Confirm, CopyText, Field, IconButton, ModalDialog, PageHeader, Select, cx, useIndicator, useToast } from '../ui/kit'
 import { AppearanceSettings } from './settings/Appearance'
@@ -326,7 +328,60 @@ function Account() {
         footer={<><Button onPress={() => setDisabling(false)}>{c.cancel}</Button><Button variant="danger-solid" isPending={disableTotp.isPending} isDisabled={!disablePw} onPress={() => disableTotp.mutate()}>{t.disableTotp}</Button></>}>
         <Field label={t.confirmPw} type="password" value={disablePw} onChange={setDisablePw} autoFocus />
       </ModalDialog>
+      <Passkeys />
     </div>
+  )
+}
+
+function Passkeys() {
+  const t = useT(S)
+  const c = useT(C)
+  const qc = useQueryClient()
+  const toast = useToast()
+  const list = useQuery({ queryKey: ['passkeys'], queryFn: () => api<Passkey[]>('/me/passkeys') })
+  const [naming, setNaming] = useState(false)
+  const [name, setName] = useState('')
+  const [removing, setRemoving] = useState<Passkey | null>(null)
+  const add = useMutation({
+    mutationFn: () => addPasskey(name.trim() || defaultPasskeyName()),
+    onSuccess: () => { toast('good', t.pkAdded); setNaming(false); qc.invalidateQueries({ queryKey: ['passkeys'] }) },
+    onError: (e) => { if (!isPasskeyCancel(e)) toast('bad', (e as Error).message) },
+  })
+  const remove = useAction({
+    fn: (id: string) => api(`/me/passkeys/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    success: t.pkRemoved, invalidate: [['passkeys']],
+  })
+  const supported = passkeysSupported()
+  return (
+    <Card title={t.pkTitle} action={list.data?.length ? <Badge tone="good" dot>{list.data.length}</Badge> : <Badge>{t.badgeOff}</Badge>}>
+      <div className="flex flex-col gap-3">
+        <p className="text-[13px] text-subtle">{t.pkHint}</p>
+        {list.data && list.data.length > 0 ? (
+          <ul className="flex flex-col divide-y rounded-[10px] border">
+            {list.data.map((p) => (
+              <li key={p.id} className="flex items-center gap-3 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{p.name}</div>
+                  <div className="text-[12px] text-subtle">{t.pkCreated(dateTime(p.created_at))} · {p.last_used_at ? t.pkLastUsed(dateTime(p.last_used_at)) : t.pkNeverUsed}</div>
+                </div>
+                <Button variant="danger" onPress={() => setRemoving(p)}>{c.remove}</Button>
+              </li>
+            ))}
+          </ul>
+        ) : list.isSuccess ? <p className="text-[13px] text-subtle">{t.pkEmpty}</p> : null}
+        {supported
+          ? <div><Button variant="primary" onPress={() => { setName(defaultPasskeyName()); setNaming(true) }}>{t.pkAdd}</Button></div>
+          : <p className="text-[13px] text-subtle">{t.pkUnsupported}</p>}
+      </div>
+      <ModalDialog isOpen={naming} onOpenChange={setNaming} title={t.pkAdd}
+        footer={<><Button onPress={() => setNaming(false)}>{c.cancel}</Button><Button variant="primary" isPending={add.isPending} onPress={() => add.mutate()}>{c.add}</Button></>}>
+        <form onSubmit={(e) => { e.preventDefault(); add.mutate() }}>
+          <Field label={t.pkName} value={name} onChange={setName} description={t.pkNameHint} autoFocus />
+        </form>
+      </ModalDialog>
+      <Confirm isOpen={!!removing} onOpenChange={(v) => !v && setRemoving(null)} danger title={t.pkRemove} confirmLabel={t.pkRemove}
+        onConfirm={() => removing && remove.mutate(removing.id)} body={t.pkRemoveBody(removing?.name ?? '')} />
+    </Card>
   )
 }
 

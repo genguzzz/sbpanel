@@ -387,4 +387,12 @@ var zhCatalog = map[string]string{
 	"value must be a number":                                                              "value 需要是数字",
 	"value must be an array of group ids":                                                 "value 需要是分组 id 数组",
 	"value must be an array of snapshots":                                                 "value 需要是快照数组",
+
+	// passkeys (passkey.go)
+	"Passkeys are not available at this address; open the panel over HTTPS or localhost": "当前地址无法使用通行密钥，请通过 HTTPS 或 localhost 打开面板",
+	"The passkey request expired; please try again":                                      "通行密钥请求已过期，请重试",
+	"Passkey verification failed":                                                        "通行密钥验证失败",
+	"Passkey sign-in failed":                                                             "通行密钥登录失败",
+	"Passkey not found":                                                                  "通行密钥不存在",
+	"This passkey is already registered":                                                 "该通行密钥已添加过",
 }

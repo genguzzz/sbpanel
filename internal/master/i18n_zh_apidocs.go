@@ -261,4 +261,23 @@ var zhAPIDocs = map[string]string{
 	"sing-box inbound options (including secrets)":       "sing-box 入站选项（含密钥）",
 	"sing-box inbound options; must include listen_port": "sing-box 入站选项，需含 listen_port",
 	"sing-box route templates":                           "sing-box 路由模板",
+
+	// passkeys (passkey.go)
+	"List your passkeys (session only)":                  "列出我的通行密钥（仅会话）",
+	"Start adding a passkey (session only)":              "开始添加通行密钥（仅会话）",
+	"Save a new passkey (session only)":                  "保存新的通行密钥（仅会话）",
+	"Remove one of your passkeys (session only)":         "删除我的某个通行密钥（仅会话）",
+	"Start a passkey sign-in":                            "开始通行密钥登录",
+	"Finish a passkey sign-in (sets the session cookie)": "完成通行密钥登录（设置会话 Cookie）",
+	"Pass options to navigator.credentials.create() and send the result to register/finish within 5 minutes.": "把 options 传给 navigator.credentials.create()，并在 5 分钟内把结果提交到 register/finish。",
+	"Pass options to navigator.credentials.get() and send the result to passkey/finish within 5 minutes.":     "把 options 传给 navigator.credentials.get()，并在 5 分钟内把结果提交到 passkey/finish。",
+	"From register/begin":    "来自 register/begin",
+	"From passkey/begin":     "来自 passkey/begin",
+	"Label, e.g. the device": "名称，例如设备名",
+	"PublicKeyCredential JSON from navigator.credentials.create()": "navigator.credentials.create() 返回的 PublicKeyCredential JSON",
+	"PublicKeyCredential JSON from navigator.credentials.get()":    "navigator.credentials.get() 返回的 PublicKeyCredential JSON",
+	"Credential id (base64url)":                                    "凭据 ID（base64url）",
+	"0 = never used":                                               "0 = 从未使用",
+	"Ceremony id; send it back to the matching finish call":        "流程 ID，提交给对应的 finish 接口",
+	"PublicKeyCredentialCreationOptions / PublicKeyCredentialRequestOptions JSON (binary fields base64url)": "PublicKeyCredentialCreationOptions / PublicKeyCredentialRequestOptions JSON（二进制字段为 base64url）",
 }

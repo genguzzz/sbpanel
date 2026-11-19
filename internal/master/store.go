@@ -199,6 +199,10 @@ var migrations = []string{
 	  adj INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(node_id, period)) WITHOUT ROWID`,
 	// v14: which address family clients try first for the node's hostname (subscriptions)
 	`ALTER TABLE nodes ADD COLUMN client_ip TEXT NOT NULL DEFAULT ''`,
+	// v15: admin passkeys (WebAuthn credentials, passkey.go); id is the base64url credential id
+	`CREATE TABLE passkeys(id TEXT PRIMARY KEY, admin TEXT NOT NULL, name TEXT NOT NULL DEFAULT '',
+	  credential_json TEXT NOT NULL, created_at INTEGER NOT NULL, last_used_at INTEGER NOT NULL DEFAULT 0);
+	CREATE INDEX passkeys_admin ON passkeys(admin)`,
 }
 
 func migrate(db *sql.DB) error {

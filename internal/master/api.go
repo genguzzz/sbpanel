@@ -44,15 +44,21 @@ func (m *Master) sign(payload string) string {
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
-// credGen fingerprints an admin's password hash and TOTP secret. Sessions carry it, so
-// changing the password or two-factor setup (or renaming / deleting the admin) ends every
-// existing session.
+// credGen fingerprints an admin's password hash, TOTP secret and passkeys. Sessions carry it,
+// so changing the password or two-factor setup, adding or removing a passkey (or renaming /
+// deleting the admin) ends every existing session.
 func (m *Master) credGen(user string) (string, bool) {
-	var hash, totp string
-	if m.db.QueryRow(`SELECT pass_hash, totp_secret FROM admins WHERE username=?`, user).Scan(&hash, &totp) != nil {
+	var hash, totp, keys string
+	if m.db.QueryRow(`SELECT pass_hash, totp_secret,
+		(SELECT COALESCE(group_concat(id, ','), '') FROM (SELECT id FROM passkeys WHERE admin=? ORDER BY id))
+		FROM admins WHERE username=?`, user, user).Scan(&hash, &totp, &keys) != nil {
 		return "", false
 	}
-	sum := sha256.Sum256([]byte(hash + "\x00" + totp))
+	fp := hash + "\x00" + totp
+	if keys != "" {
+		fp += "\x00" + keys // admins without passkeys keep the fingerprint they had before
+	}
+	sum := sha256.Sum256([]byte(fp))
 	return hex.EncodeToString(sum[:8]), true
 }
 
@@ -110,6 +116,12 @@ func (m *Master) routes() http.Handler {
 	mux.HandleFunc("POST /api/me/totp/setup", a(m.apiTOTPSetup))
 	mux.HandleFunc("POST /api/me/totp/enable", a(m.apiTOTPEnable))
 	mux.HandleFunc("POST /api/me/totp/disable", a(m.apiTOTPDisable))
+	mux.HandleFunc("GET /api/me/passkeys", a(m.apiPasskeys))
+	mux.HandleFunc("POST /api/me/passkeys/register/begin", a(m.apiPasskeyRegisterBegin))
+	mux.HandleFunc("POST /api/me/passkeys/register/finish", a(m.apiPasskeyRegisterFinish))
+	mux.HandleFunc("DELETE /api/me/passkeys/{id}", a(m.apiDeletePasskey))
+	mux.HandleFunc("POST /api/auth/passkey/begin", m.apiPasskeyLoginBegin)
+	mux.HandleFunc("POST /api/auth/passkey/finish", m.apiPasskeyLoginFinish)
 	mux.HandleFunc("GET /api/tokens", a(m.apiTokens))
 	mux.HandleFunc("POST /api/tokens", a(m.apiCreateToken))
 	mux.HandleFunc("DELETE /api/tokens/{id}", a(m.apiDeleteToken))
@@ -332,11 +344,18 @@ func (m *Master) apiLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	m.completeLogin(w, r, req.Username, "login")
+}
+
+// completeLogin signs in an admin who passed every check (password + TOTP, or a passkey):
+// clears the IP's failure count, audits action, and sets the session cookie.
+func (m *Master) completeLogin(w http.ResponseWriter, r *http.Request, user, action string) {
+	ip := clientIP(r)
 	m.logins.ok(ip)
-	m.db.Exec(`INSERT INTO audit_log(ts, admin, action, target, ip) VALUES(?,?,?,?,?)`, now(), req.Username, "login", "", ip)
+	m.db.Exec(`INSERT INTO audit_log(ts, admin, action, target, ip) VALUES(?,?,?,?,?)`, now(), user, action, "", ip)
 	setSetting(m.db, "admin_lang", reqLang(r)) // notifications follow the admin's UI language
-	m.setSession(w, r, req.Username)
-	writeJSON(w, 200, map[string]string{"username": req.Username})
+	m.setSession(w, r, user)
+	writeJSON(w, 200, map[string]string{"username": user})
 }
 
 func (m *Master) setSession(w http.ResponseWriter, r *http.Request, user string) {
