@@ -21,7 +21,7 @@ export const TR = dict({
   kTotal: 'Total traffic', kPeak: 'Peak rate', kConns: 'Connections', kItems: (d: string) => `${d}s`,
   kPeakAt: (t: string) => `at ${t}`, kAvg: (r: string) => `avg ${r}`,
   analysis: 'Ranking', activity: 'Activity', rankCol: '#', total: 'Total',
-  filterThis: 'Filter to this', drill: 'Hosts in this domain', zoomHint: 'Drag across the chart to zoom into a time range',
+  filterThis: 'Filter to this', drill: 'Hosts in this domain', zoomHint: 'Drag across the chart to zoom into a time range', legendHint: 'click a legend entry to filter by it',
   detailMode: 'Domain-level filters use 5-minute data',
 }, {
   r1h: '1 小时', r6h: '6 小时', r24h: '24 小时', r7d: '7 天', r30d: '30 天',
@@ -42,6 +42,6 @@ export const TR = dict({
   kTotal: '总流量', kPeak: '峰值速率', kConns: '连接数', kItems: (d) => `${d}数`,
   kPeakAt: (t) => `出现在 ${t}`, kAvg: (r) => `平均 ${r}`,
   analysis: '排行', activity: '活动明细', rankCol: '#', total: '合计',
-  filterThis: '只看这个', drill: '查看该域名下的主机', zoomHint: '在图上拖选一段时间即可放大',
+  filterThis: '只看这个', drill: '查看该域名下的主机', zoomHint: '在图上拖选一段时间即可放大', legendHint: '点击图例可按它筛选',
   detailMode: '按域名等明细筛选时使用 5 分钟数据',
 })

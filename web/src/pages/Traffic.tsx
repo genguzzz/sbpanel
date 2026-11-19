@@ -168,6 +168,8 @@ export function TrafficPage() {
       .sort((a, b) => entitySlot(group, a.key) - entitySlot(group, b.key))
   }, [series.data, group])
   const times = series.data?.series[0]?.points.map((p) => p[0]) ?? []
+  // a split series is one value of a filter key: clicking it in the legend filters by it
+  const pickable = group !== 'total' && (FILTER_KEYS as readonly string[]).includes(group)
   const realStep = series.data?.step ?? step
   const stats = useMemo(() => {
     const s = series.data?.series ?? []
@@ -294,9 +296,10 @@ export function TrafficPage() {
             </div>
             {series.isPending && !series.data ? <Skeleton className="h-[260px]" /> : (
               <TimeChart height={260} step={realStep} times={times} series={chartSeries} stacked={group !== 'total'}
+                onPick={pickable ? (k: string) => toggle(group as FilterKey, k) : undefined} picked={pickable ? filters[group as FilterKey] ?? [] : undefined}
                 onBrush={(f: number, t: number) => { const lo = Math.max(Math.floor(Date.now() / 1000) - KEEP, Math.floor(f / 60) * 60); const hi = Math.ceil(t / 60) * 60; if (hi - lo < 120) return false; setRange(lo, hi) }} />
             )}
-            <div className="mt-1 text-xs text-muted">{t.zoomHint}{detail && <> · {t.detailMode}</>}</div>
+            <div className="mt-1 text-xs text-muted">{t.zoomHint}{pickable && <> · {t.legendHint}</>}{detail && <> · {t.detailMode}</>}</div>
           </Card>
 
           <Card busy={top.isPlaceholderData} pad={false}

@@ -7,6 +7,8 @@ import { bytes } from '../../lib/fmt'
 import { locale, tr } from '../../i18n'
 import { C } from '../../i18n/common'
 
+const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ')
+
 export type ChartSeries = { key: string; label: string; values: number[]; color?: string }
 /** bytes: per-bucket byte counts (tooltip adds the rate); size: a byte amount (memory); rate: bytes/s; pct: 0–100. */
 export type ChartUnit = 'bytes' | 'size' | 'rate' | 'pct'
@@ -112,10 +114,13 @@ function yMax(s: Snap): number {
   return niceMax(max)
 }
 
-export function TimeSeriesChart({ times, step, series, stacked = false, height = 240, empty, onBrush, unit = 'bytes' }: {
+export function TimeSeriesChart({ times, step, series, stacked = false, height = 240, empty, onBrush, unit = 'bytes', onPick, picked }: {
   times: number[]; step: number; series: ChartSeries[]; stacked?: boolean; height?: number; empty?: ReactNode; unit?: ChartUnit
   /** Drag across the plot to select a sub-range (unix seconds). Return false to reject the selection. */
   onBrush?: (from: number, to: number) => boolean | void
+  /** clicking a legend entry (e.g. to filter by that series); keys in `picked` show as selected */
+  onPick?: (key: string) => void
+  picked?: string[]
 }) {
   const theme = useChartTheme()
   const chart = useRef<EChartsType | null>(null)
@@ -306,10 +311,19 @@ export function TimeSeriesChart({ times, step, series, stacked = false, height =
       {series.length > 1 && (
         <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-subtle" aria-label={tr(C).legend}>
           {series.map((s, i) => (
-            <span key={s.key} className="inline-flex animate-content-in items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: s.color ?? seriesColor(i) }} />
-              <span className="text-text">{s.label}</span>
-            </span>
+            onPick && s.key !== '(other)' ? (
+              <button key={s.key} type="button" onClick={() => onPick(s.key)} aria-pressed={!!picked?.includes(s.key)}
+                className={cx('-mx-1.5 -my-0.5 inline-flex animate-content-in cursor-pointer items-center gap-1.5 rounded-full px-1.5 py-0.5 outline-none transition-colors hover:bg-overlay focus-visible:ring-2 focus-visible:ring-accent',
+                  picked?.includes(s.key) && 'bg-accent/12 font-medium')}>
+                <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: s.color ?? seriesColor(i) }} />
+                <span className="text-text">{s.label}</span>
+              </button>
+            ) : (
+              <span key={s.key} className="inline-flex animate-content-in items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: s.color ?? seriesColor(i) }} />
+                <span className="text-text">{s.label}</span>
+              </span>
+            )
           ))}
         </div>
       )}
