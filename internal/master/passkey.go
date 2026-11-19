@@ -166,6 +166,10 @@ func (m *Master) passkeyAdmin(username string) (*passkeyUser, error) {
 	return u, rows.Err()
 }
 
+func passkeyUnavailable(w http.ResponseWriter) {
+	writeErr(w, 400, "Passkeys are not available at this address; open the panel over HTTPS or localhost")
+}
+
 // ---------- account endpoints (session only) ----------
 
 type passkeyInfo struct {
@@ -190,7 +194,7 @@ func (m *Master) apiPasskeys(w http.ResponseWriter, r *http.Request) {
 func (m *Master) apiPasskeyRegisterBegin(w http.ResponseWriter, r *http.Request) {
 	wa, err := m.relyingParty(r)
 	if err != nil {
-		writeErr(w, 400, "Passkeys are not available at this address; open the panel over HTTPS or localhost")
+		passkeyUnavailable(w)
 		return
 	}
 	u, err := m.passkeyAdmin(actor(r))
@@ -224,7 +228,7 @@ func (m *Master) apiPasskeyRegisterFinish(w http.ResponseWriter, r *http.Request
 	}
 	wa, err := m.relyingParty(r)
 	if err != nil {
-		writeErr(w, 400, "Passkeys are not available at this address; open the panel over HTTPS or localhost")
+		passkeyUnavailable(w)
 		return
 	}
 	u, err := m.passkeyAdmin(c.admin)
@@ -266,15 +270,12 @@ func (m *Master) apiPasskeyRegisterFinish(w http.ResponseWriter, r *http.Request
 
 func (m *Master) apiDeletePasskey(w http.ResponseWriter, r *http.Request) {
 	var name string
-	err := m.db.QueryRow(`SELECT name FROM passkeys WHERE id=? AND admin=?`, r.PathValue("id"), actor(r)).Scan(&name)
+	err := m.db.QueryRow(`DELETE FROM passkeys WHERE id=? AND admin=? RETURNING name`, r.PathValue("id"), actor(r)).Scan(&name)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeErr(w, 404, "Passkey not found")
 		return
 	}
 	if errf(w, err) {
-		return
-	}
-	if _, err := m.db.Exec(`DELETE FROM passkeys WHERE id=? AND admin=?`, r.PathValue("id"), actor(r)); errf(w, err) {
 		return
 	}
 	m.renewOwnSession(w, r)
@@ -295,7 +296,7 @@ func (m *Master) apiPasskeyLoginBegin(w http.ResponseWriter, r *http.Request) {
 	}
 	wa, err := m.relyingParty(r)
 	if err != nil {
-		writeErr(w, 400, "Passkeys are not available at this address; open the panel over HTTPS or localhost")
+		passkeyUnavailable(w)
 		return
 	}
 	assertion, data, err := wa.BeginDiscoverableLogin(webauthn.WithUserVerification(protocol.VerificationRequired))
@@ -325,20 +326,17 @@ func (m *Master) apiPasskeyLoginFinish(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "The passkey request expired; please try again")
 		return
 	}
-	who := passkeyLoginUser
+	// failures count against the admin once the credential is known, else against this client
+	who, limitKey := passkeyLoginUser, passkeyLimitKey(ip)
 	fail := func() {
-		if who == passkeyLoginUser {
-			m.logins.fail(ip, passkeyLimitKey(ip))
-		} else {
-			m.logins.fail(ip, who)
-		}
+		m.logins.fail(ip, limitKey)
 		time.Sleep(500 * time.Millisecond)
 		m.db.Exec(`INSERT INTO audit_log(ts, admin, action, target, ip) VALUES(?,?,?,?,?)`, now(), who, "login.failed", "passkey", ip)
 		writeErr(w, 401, "Passkey sign-in failed")
 	}
 	wa, err := m.relyingParty(r)
 	if err != nil {
-		writeErr(w, 400, "Passkeys are not available at this address; open the panel over HTTPS or localhost")
+		passkeyUnavailable(w)
 		return
 	}
 	parsed, err := protocol.ParseCredentialRequestResponseBytes(req.Credential)
@@ -352,7 +350,7 @@ func (m *Master) apiPasskeyLoginFinish(w http.ResponseWriter, r *http.Request) {
 		if err := m.db.QueryRow(`SELECT admin FROM passkeys WHERE id=?`, passkeyID(rawID)).Scan(&admin); err != nil {
 			return nil, errors.New("unknown credential")
 		}
-		who = admin
+		who, limitKey = admin, admin
 		u, err := m.passkeyAdmin(admin)
 		if err != nil {
 			return nil, err

@@ -76,6 +76,20 @@ export function InboundsPage() {
     return (probes.data ?? []).filter((r) => t.all || r.inbound_id === t.inbound_id)
   })()
 
+  // shared by the phone cards and the table rows
+  const health = (i: Inbound) => (
+    <HealthDot results={probeOf(i.id)} running={runningFor({ inbound_id: i.id })}
+      onPress={() => probeOf(i.id).length ? setProbeView({ title: T().connOf(i.tag), target: { inbound_id: i.id } }) : test(T().connOf(i.tag), { inbound_id: i.id })} />
+  )
+  const enabledSwitch = (i: Inbound) => <Switch label={T().enableX(i.tag)} isSelected={i.enabled} isDisabled={toggle.isPending && toggle.variables?.id === i.id} onChange={() => toggle.mutate(i)} />
+  const actions = (i: Inbound) => (
+    <>
+      <IconButton label={T().testX(i.tag)} isDisabled={!i.enabled} onPress={() => test(T().connOf(i.tag), { inbound_id: i.id })}><IconProbe /></IconButton>
+      <IconButton label={tr(C).edit} onPress={() => setEditing(i)}><IconEdit size={16} /></IconButton>
+      <IconButton label={tr(C).delete} onPress={() => setDeleting(i)}><IconTrash size={16} /></IconButton>
+    </>
+  )
+
   const byNode = new Map<string, Inbound[]>()
   for (const i of inbounds.data ?? []) byNode.set(i.node_id, [...(byNode.get(i.node_id) ?? []), i])
 
@@ -99,22 +113,18 @@ export function InboundsPage() {
               {byNode.get(n.id)!.map((i) => (
                 <li key={i.id} className="flex flex-col gap-2 px-4 py-3">
                   <div className="flex items-start gap-2.5">
-                    <span className="pt-1"><HealthDot results={probeOf(i.id)} running={runningFor({ inbound_id: i.id })} onPress={() => probeOf(i.id).length ? setProbeView({ title: T().connOf(i.tag), target: { inbound_id: i.id } }) : test(T().connOf(i.tag), { inbound_id: i.id })} /></span>
+                    <span className="pt-1">{health(i)}</span>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">{i.tag}</div>
                       {i.remark && <div className="truncate text-xs text-muted">{i.remark}</div>}
                     </div>
-                    <Switch label={T().enableX(i.tag)} isSelected={i.enabled} isDisabled={toggle.isPending && toggle.variables?.id === i.id} onChange={() => toggle.mutate(i)} />
+                    {enabledSwitch(i)}
                   </div>
                   <div className="flex items-center gap-2 pl-5 text-xs text-subtle">
                     <Badge tone="accent">{i.type}</Badge>
                     <span className="font-mono tabular">:{i.port}</span>
                     <span className="min-w-0 flex-1 truncate">{describe(i)}</span>
-                    <span className="-my-1 flex shrink-0">
-                      <IconButton label={T().testX(i.tag)} isDisabled={!i.enabled} onPress={() => test(T().connOf(i.tag), { inbound_id: i.id })}><IconProbe /></IconButton>
-                      <IconButton label={tr(C).edit} onPress={() => setEditing(i)}><IconEdit size={16} /></IconButton>
-                      <IconButton label={tr(C).delete} onPress={() => setDeleting(i)}><IconTrash size={16} /></IconButton>
-                    </span>
+                    <span className="-my-1 flex shrink-0">{actions(i)}</span>
                   </div>
                 </li>
               ))}
@@ -129,16 +139,14 @@ export function InboundsPage() {
               <tbody>
                 {byNode.get(n.id)!.map((i) => (
                   <tr key={i.id} className="border-b last:border-0 hover:bg-hl-low">
-                    <td className="py-2.5 pr-0 pl-3"><HealthDot results={probeOf(i.id)} running={runningFor({ inbound_id: i.id })} onPress={() => probeOf(i.id).length ? setProbeView({ title: T().connOf(i.tag), target: { inbound_id: i.id } }) : test(T().connOf(i.tag), { inbound_id: i.id })} /></td>
+                    <td className="py-2.5 pr-0 pl-3">{health(i)}</td>
                     <td className="px-3 py-2.5 font-medium">{i.tag}{i.remark && <div className="text-xs font-normal text-muted">{i.remark}</div>}</td>
                     <td className="px-3 py-2.5"><Badge tone="accent">{i.type}</Badge></td>
                     <td className="px-3 py-2.5 font-mono tabular">{i.port}</td>
                     <td className="hidden px-3 py-2.5 text-subtle md:table-cell">{describe(i)}</td>
-                    <td className="px-3 py-2.5"><Switch label={T().enableX(i.tag)} isSelected={i.enabled} isDisabled={toggle.isPending && toggle.variables?.id === i.id} onChange={() => toggle.mutate(i)} /></td>
+                    <td className="px-3 py-2.5">{enabledSwitch(i)}</td>
                     <td className="px-5 py-2.5 text-right whitespace-nowrap">
-                      <IconButton label={T().testX(i.tag)} isDisabled={!i.enabled} onPress={() => test(T().connOf(i.tag), { inbound_id: i.id })}><IconProbe /></IconButton>
-                      <IconButton label={tr(C).edit} onPress={() => setEditing(i)}><IconEdit size={16} /></IconButton>
-                      <IconButton label={tr(C).delete} onPress={() => setDeleting(i)}><IconTrash size={16} /></IconButton>
+                      {actions(i)}
                     </td>
                   </tr>
                 ))}
@@ -212,9 +220,10 @@ function DnsStatus({ host, nodeId, nodeName, cdn, protocol, acme }: { host: stri
   else text = d.error ? t.dnsError(d.error) : t.dnsNone(d.host)
   const acmeBad = acme && (d.proxied || d.status !== 'ok')
   const showIps = !d.proxied && d.ips.length > 0 && d.status !== 'unknown'
-  // a family the node has but the domain lacks: clients on that family can't connect
   const v6 = (ip: string) => ip.includes(':')
-  const missing = showIps ? (['IPv4', 'IPv6'] as const).filter((f) => d.node_ips.some((ip) => v6(ip) === (f === 'IPv6')) && !d.ips.some((ip) => v6(ip) === (f === 'IPv6'))) : []
+  const fam = (ip: string) => (v6(ip) ? 'IPv6' : 'IPv4')
+  // a family the node has but the domain lacks: clients on only that family can't connect
+  const missing = showIps ? [...new Set(d.node_ips.map(fam))].filter((f) => !d.ips.some((ip) => fam(ip) === f)) : []
   return (
     <Callout tone={acmeBad ? 'bad' : tone}>
       <div data-testid="dns-status" data-status={d.proxied ? 'proxied' : d.status}>{text}</div>
@@ -224,7 +233,7 @@ function DnsStatus({ host, nodeId, nodeName, cdn, protocol, acme }: { host: stri
             const mine = d.node_ips.includes(ip)
             return (
               <li key={ip} className="flex items-baseline gap-2">
-                <span className="w-9 shrink-0 text-muted">{v6(ip) ? 'IPv6' : 'IPv4'}</span>
+                <span className="w-9 shrink-0 text-muted">{fam(ip)}</span>
                 <span className="font-mono break-all">{ip}</span>
                 <span className={cx('shrink-0', mine ? 'text-good' : 'text-bad')}>{mine ? `✓ ${nodeName}` : `✗ ${t.dnsNotNode}`}</span>
               </li>
@@ -440,7 +449,7 @@ function InboundEditor({ nodes, groups, inbounds, value, onClose, isOpen, preNod
  * node-file certificates imported for this very node (the master only knows their paths, so they
  * never "have material"). The current choice stays listed even if it no longer qualifies.
  */
-export function usableCerts(certs: Cert[], nodeId: string, current = ''): Cert[] {
+function usableCerts(certs: Cert[], nodeId: string, current = ''): Cert[] {
   return certs.filter((c) => c.id === current || (c.source === 'node' ? c.node_id === nodeId : c.has_material))
 }
 

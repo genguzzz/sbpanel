@@ -310,21 +310,19 @@ export function TimeSeriesChart({ times, step, series, stacked = false, height =
     <div className="relative w-full select-none">
       {series.length > 1 && (
         <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-subtle" aria-label={tr(C).legend}>
-          {series.map((s, i) => (
-            onPick && s.key !== '(other)' ? (
-              <button key={s.key} type="button" onClick={() => onPick(s.key)} aria-pressed={!!picked?.includes(s.key)}
-                className={cx('-mx-1.5 -my-0.5 inline-flex animate-content-in cursor-pointer items-center gap-1.5 rounded-full px-1.5 py-0.5 outline-none transition-colors hover:bg-overlay focus-visible:ring-2 focus-visible:ring-accent',
-                  picked?.includes(s.key) && 'bg-accent/12 font-medium')}>
+          {series.map((s, i) => {
+            // a button only when the entry can be picked; otherwise plain text for screen readers
+            const pick = onPick && s.key !== '(other)' ? { type: 'button' as const, onClick: () => onPick(s.key), 'aria-pressed': !!picked?.includes(s.key) } : null
+            const Tag = pick ? 'button' : 'span'
+            return (
+              <Tag key={s.key} {...pick}
+                className={cx('-mx-1.5 -my-0.5 inline-flex animate-content-in items-center gap-1.5 rounded-full px-1.5 py-0.5 outline-none',
+                  pick && 'cursor-pointer transition-colors hover:bg-overlay focus-visible:ring-2 focus-visible:ring-accent', picked?.includes(s.key) && 'bg-accent/12 font-medium')}>
                 <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: s.color ?? seriesColor(i) }} />
                 <span className="text-text">{s.label}</span>
-              </button>
-            ) : (
-              <span key={s.key} className="inline-flex animate-content-in items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: s.color ?? seriesColor(i) }} />
-                <span className="text-text">{s.label}</span>
-              </span>
+              </Tag>
             )
-          ))}
+          })}
         </div>
       )}
       <div ref={host} role="img" aria-label={tr(C).trafficTrend(bytes(total), !!onBrush)}

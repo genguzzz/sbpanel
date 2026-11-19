@@ -169,7 +169,7 @@ export function TrafficPage() {
   }, [series.data, group])
   const times = series.data?.series[0]?.points.map((p) => p[0]) ?? []
   // a split series is one value of a filter key: clicking it in the legend filters by it
-  const pickable = group !== 'total' && (FILTER_KEYS as readonly string[]).includes(group)
+  const pickable = group !== 'total' // every other split is a filter key
   const realStep = series.data?.step ?? step
   const stats = useMemo(() => {
     const s = series.data?.series ?? []
@@ -234,14 +234,7 @@ export function TrafficPage() {
               rows={facetQ[i].data?.rows ?? []} selected={filters[k] ?? []} label={(v) => valueLabel(k, v)}
               onToggle={(v) => toggle(k, v)} onClear={() => nav({ [k]: undefined })} />
           ))}
-          {active.filter((k) => !FACETS.includes(k)).flatMap((k) => filters[k]!.map((v) => (
-            <span key={k + v} className="inline-flex h-8 max-w-[16rem] shrink-0 items-center gap-1 rounded-full bg-accent/12 pr-1 pl-3 text-[13px] text-accent-text">
-              <span className="shrink-0 text-subtle">{dimLabel(k)}</span>
-              <span className={cx('truncate font-medium', MONO.includes(k) && 'font-mono text-[12.5px]')}>{valueLabel(k, v)}</span>
-              <button type="button" aria-label={`× ${dimLabel(k)} ${valueLabel(k, v)}`} onClick={() => toggle(k, v)}
-                className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-full outline-none hover:bg-accent/20 focus-visible:ring-2 focus-visible:ring-accent"><IconX size={12} /></button>
-            </span>
-          )))}
+          {active.filter((k) => !FACETS.includes(k)).flatMap((k) => filters[k]!.map((v) => <FilterChip key={k + v} k={k} label={valueLabel(k, v)} onRemove={() => toggle(k, v)} />))}
           {active.length === 0 && <span className="hidden px-1 text-xs text-muted lg:inline">{t.noFilter}</span>}
         </div>
         {active.length > 0 && <button type="button" onClick={clearAll} className="shrink-0 cursor-pointer px-2 text-[13px] text-subtle outline-none hover:text-text hover:underline focus-visible:ring-2 focus-visible:ring-accent">{t.clearAll}</button>}
@@ -251,14 +244,7 @@ export function TrafficPage() {
         <div className="mb-4 hidden min-h-9 flex-wrap items-center gap-2 rounded-[12px] border border-dashed px-3 py-1.5 lg:flex">
           <span className="text-[13px] font-medium text-subtle">{t.filters}</span>
           {active.length === 0 && <span className="text-[13px] text-muted">{t.noFilter}</span>}
-          {active.flatMap((k) => filters[k]!.map((v) => (
-            <span key={k + v} className="inline-flex h-7 max-w-full items-center gap-1 rounded-full bg-accent/12 pr-1 pl-3 text-[13px] text-accent-text">
-              <span className="text-subtle">{dimLabel(k)}</span>
-              <span className={cx('truncate font-medium', MONO.includes(k) && 'font-mono text-[12.5px]')}>{valueLabel(k, v)}</span>
-              <button type="button" aria-label={`× ${dimLabel(k)} ${valueLabel(k, v)}`} onClick={() => toggle(k, v)}
-                className="grid size-5 cursor-pointer place-items-center rounded-full outline-none hover:bg-accent/20 focus-visible:ring-2 focus-visible:ring-accent"><IconX size={12} /></button>
-            </span>
-          )))}
+          {active.flatMap((k) => filters[k]!.map((v) => <FilterChip key={k + v} k={k} label={valueLabel(k, v)} onRemove={() => toggle(k, v)} />))}
           {active.length > 0 && <button type="button" onClick={clearAll} className="ml-auto cursor-pointer text-[13px] text-subtle outline-none hover:text-text hover:underline focus-visible:ring-2 focus-visible:ring-accent">{t.clearAll}</button>}
         </div>
       )}
@@ -361,16 +347,62 @@ const FACET_LAYOUT_KEY = 'sbp.traffic.facets'
 const FACET_N = 5
 const FACET_SEARCH = 8
 
-/** Side-column dimension (PC, "side" layout): a 100% composition bar, then the ranked values. */
+/** One active filter value with a remove button. */
+function FilterChip({ k, label, onRemove }: { k: FilterKey; label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex h-7 max-w-[16rem] shrink-0 items-center gap-1 rounded-full bg-accent/12 pr-1 pl-3 text-[13px] text-accent-text">
+      <span className="shrink-0 text-subtle">{dimLabel(k)}</span>
+      <span className={cx('truncate font-medium', MONO.includes(k) && 'font-mono text-[12.5px]')}>{label}</span>
+      <button type="button" aria-label={`× ${dimLabel(k)} ${label}`} onClick={onRemove}
+        className="grid size-5 shrink-0 cursor-pointer place-items-center rounded-full outline-none hover:bg-accent/20 focus-visible:ring-2 focus-visible:ring-accent"><IconX size={12} /></button>
+    </span>
+  )
+}
 
-/** One filter dimension: a 100% composition bar, then the ranked values; click toggles a filter. */
-function Facet({ name, ns, rows, selected, onToggle, busy, loading }: {
-  name: string; ns: string; rows: TopRow[]; selected: string[]; onToggle: (k: string) => void; busy?: boolean; loading?: boolean
+/** A dimension's values: a 100% composition bar, then the rows in `shown` (click toggles a filter). */
+function FacetValues({ ns, rows, shown, selected, onToggle, listClass }: {
+  ns: string; rows: TopRow[]; shown: TopRow[]; selected: string[]; onToggle: (k: string) => void; listClass?: string
 }) {
-  const [open, setOpen] = useState(false)
   const total = rows.reduce((a, x) => a + x.up + x.down, 0)
-  const shown = open ? rows : [...rows.slice(0, FACET_N), ...rows.slice(FACET_N).filter((x) => selected.includes(x.key))]
   const color = (k: string, i: number) => (i < 8 ? entityColor(ns, k) : OTHER_COLOR)
+  const rest = rows.slice(8).reduce((a, y) => a + y.up + y.down, 0)
+  return (
+    <>
+      <div className="mx-1 mb-2 flex h-2 shrink-0 overflow-hidden rounded-full bg-overlay" aria-hidden>
+        {rows.slice(0, 9).map((x, i) => (
+          <div key={x.key} className={cx('h-full transition-[width,opacity] duration-(--dur-3)', selected.length > 0 && !selected.includes(x.key) && 'opacity-30')}
+            style={{ width: `${pct(i < 8 ? x.up + x.down : rest, total)}%`, background: color(x.key, i) }} />
+        ))}
+      </div>
+      <ul className={cx('flex flex-col', listClass)}>
+        {shown.map((x) => {
+          const on = selected.includes(x.key)
+          return (
+            <li key={x.key}>
+              <button type="button" aria-pressed={on} onClick={() => onToggle(x.key)} title={x.label}
+                className={cx('flex min-h-8 w-full cursor-pointer items-center gap-2 rounded-[8px] px-1.5 py-1 text-left text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent',
+                  on ? 'bg-accent/12 text-accent-text' : 'hover:bg-overlay')}>
+                <span className="grid size-3.5 shrink-0 place-items-center rounded-[4px]" style={{ background: on ? undefined : color(x.key, rows.indexOf(x)) }}>
+                  {on && <IconCheck size={13} />}
+                </span>
+                <span className="min-w-0 flex-1 truncate">{x.label}</span>
+                <span className="shrink-0 text-xs tabular text-subtle">{bytes(x.up + x.down)}</span>
+                <span className="w-9 shrink-0 text-right text-[11px] text-muted tabular">{pct(x.up + x.down, total).toFixed(0)}%</span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </>
+  )
+}
+
+type FacetProps = { name: string; ns: string; rows: TopRow[]; selected: string[]; onToggle: (k: string) => void; busy?: boolean; loading?: boolean }
+
+/** Side column (PC "side" layout): one dimension with its top values inline. */
+function Facet({ name, ns, rows, selected, onToggle, busy, loading }: FacetProps) {
+  const [open, setOpen] = useState(false)
+  const shown = open ? rows : [...rows.slice(0, FACET_N), ...rows.slice(FACET_N).filter((x) => selected.includes(x.key))]
   return (
     <section className={cx('px-2 py-3 transition-opacity first:pt-0 last:pb-0', busy && 'opacity-60')}>
       <div className="mb-2 flex items-baseline justify-between gap-2 px-1">
@@ -379,32 +411,7 @@ function Facet({ name, ns, rows, selected, onToggle, busy, loading }: {
       </div>
       {loading ? <Skeleton className="h-20" /> : rows.length === 0 ? <div className="px-1 text-xs text-muted">—</div> : (
         <>
-          <div className="mx-1 mb-2 flex h-2 overflow-hidden rounded-full bg-overlay" aria-hidden>
-            {rows.slice(0, 9).map((x, i) => (
-              <div key={x.key} className={cx('h-full transition-[width,opacity] duration-(--dur-3)', selected.length > 0 && !selected.includes(x.key) && 'opacity-30')}
-                style={{ width: `${pct(i < 8 ? x.up + x.down : rows.slice(8).reduce((a, y) => a + y.up + y.down, 0), total)}%`, background: color(x.key, i) }} />
-            ))}
-          </div>
-          <ul className={cx('flex flex-col', open && 'max-h-[320px] overflow-auto')}>
-            {shown.map((x) => {
-              const i = rows.indexOf(x)
-              const on = selected.includes(x.key)
-              return (
-                <li key={x.key}>
-                  <button type="button" aria-pressed={on} onClick={() => onToggle(x.key)} title={x.label}
-                    className={cx('flex w-full cursor-pointer items-center gap-2 rounded-[8px] px-1.5 py-1 text-left text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent',
-                      on ? 'bg-accent/12 text-accent-text' : 'hover:bg-overlay')}>
-                    <span className="grid size-3.5 shrink-0 place-items-center rounded-[4px]" style={{ background: on ? undefined : color(x.key, i) }}>
-                      {on && <IconCheck size={13} />}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate">{x.label}</span>
-                    <span className="shrink-0 text-xs tabular text-subtle">{bytes(x.up + x.down)}</span>
-                    <span className="w-10 shrink-0 text-right text-[11px] text-muted tabular">{pct(x.up + x.down, total).toFixed(0)}%</span>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
+          <FacetValues ns={ns} rows={rows} shown={shown} selected={selected} onToggle={onToggle} listClass={open ? 'max-h-[320px] overflow-auto' : undefined} />
           {rows.length > FACET_N && (
             <button type="button" onClick={() => setOpen(!open)} className="mt-1 cursor-pointer px-1.5 text-xs text-accent-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-accent">
               {open ? tr(TR).showLess : tr(TR).showAll(rows.length)}
@@ -416,22 +423,15 @@ function Facet({ name, ns, rows, selected, onToggle, busy, loading }: {
   )
 }
 
-
 /**
- * One filter dimension as a pill. Its values open in a popover: a 100% composition bar, then the
- * ranked values (multi-select; the list is computed under every *other* filter, so it stays put
- * while you pick).
+ * Filter bar: one dimension as a pill whose values open in a popover. The list is computed under
+ * every *other* filter, so it stays put while you pick several.
  */
-function FacetPicker({ name, ns, rows, selected, label, onToggle, onClear, busy, loading }: {
-  name: string; ns: string; rows: TopRow[]; selected: string[]; label: (k: string) => string
-  onToggle: (k: string) => void; onClear: () => void; busy?: boolean; loading?: boolean
-}) {
+function FacetPicker({ name, ns, rows, selected, label, onToggle, onClear, busy, loading }: FacetProps & { label: (k: string) => string; onClear: () => void }) {
   const ref = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const t = tr(TR)
-  const total = rows.reduce((a, x) => a + x.up + x.down, 0)
-  const color = (k: string, i: number) => (i < 8 ? entityColor(ns, k) : OTHER_COLOR)
   const shown = q ? rows.filter((x) => x.label.toLowerCase().includes(q.toLowerCase())) : rows
   const on = selected.length > 0
   return (
@@ -440,8 +440,7 @@ function FacetPicker({ name, ns, rows, selected, label, onToggle, onClear, busy,
         className={cx('inline-flex h-full max-w-[15rem] cursor-pointer items-center gap-1.5 rounded-full pl-3 outline-none focus-visible:ring-2 focus-visible:ring-accent', on ? 'pr-1' : 'pr-3')}>
         <span className={cx('shrink-0', on ? 'text-subtle' : 'font-medium')}>{name}</span>
         {on ? <span className="truncate font-medium">{label(selected[0])}{selected.length > 1 && ` +${selected.length - 1}`}</span>
-          : <span className="text-xs text-muted tabular">{loading ? '…' : num(rows.length)}</span>}
-        {!on && <span className="text-[10px] text-muted">▾</span>}
+          : <span className="text-xs text-muted tabular">{loading ? '…' : num(rows.length)} ▾</span>}
       </button>
       {on && (
         <button type="button" aria-label={t.clearDim(name)} onClick={onClear}
@@ -456,39 +455,14 @@ function FacetPicker({ name, ns, rows, selected, label, onToggle, onClear, busy,
           </div>
           {loading ? <Skeleton className="h-24" /> : rows.length === 0 ? <div className="px-1 py-4 text-center text-xs text-muted">{t.empty}</div> : (
             <>
-              <div className="mx-1 mb-2 flex h-2 shrink-0 overflow-hidden rounded-full bg-overlay" aria-hidden>
-                {rows.slice(0, 9).map((x, i) => (
-                  <div key={x.key} className={cx('h-full', on && !selected.includes(x.key) && 'opacity-30')}
-                    style={{ width: `${pct(i < 8 ? x.up + x.down : rows.slice(8).reduce((a, y) => a + y.up + y.down, 0), total)}%`, background: color(x.key, i) }} />
-                ))}
-              </div>
               {rows.length > FACET_SEARCH && (
                 <label className="relative mx-1 mb-2 block shrink-0">
                   <IconSearch size={14} className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" />
                   <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={t.filter} aria-label={t.filter}
-                    className="h-9 w-full rounded-full border bg-base pr-3 pl-8 text-base outline-none focus:border-accent sm:text-[13px]" />
+                    className="h-9 w-full rounded-full border bg-base pr-3 pl-8 text-[13px] outline-none focus:border-accent" />
                 </label>
               )}
-              <ul className="-mx-0.5 flex min-h-0 flex-col overflow-y-auto overscroll-contain">
-                {shown.map((x) => {
-                  const i = rows.indexOf(x)
-                  const sel = selected.includes(x.key)
-                  return (
-                    <li key={x.key}>
-                      <button type="button" aria-pressed={sel} onClick={() => onToggle(x.key)} title={x.label}
-                        className={cx('flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-[8px] px-2 py-1 text-left text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent',
-                          sel ? 'bg-accent/12 text-accent-text' : 'hover:bg-overlay')}>
-                        <span className="grid size-3.5 shrink-0 place-items-center rounded-[4px]" style={{ background: sel ? undefined : color(x.key, i) }}>
-                          {sel && <IconCheck size={13} />}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate">{x.label}</span>
-                        <span className="shrink-0 text-xs tabular text-subtle">{bytes(x.up + x.down)}</span>
-                        <span className="w-9 shrink-0 text-right text-[11px] text-muted tabular">{pct(x.up + x.down, total).toFixed(0)}%</span>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
+              <FacetValues ns={ns} rows={rows} shown={shown} selected={selected} onToggle={onToggle} listClass="min-h-0 overflow-y-auto overscroll-contain" />
             </>
           )}
         </Dialog>
