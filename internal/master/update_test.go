@@ -38,22 +38,39 @@ func TestUpgradeEvents(t *testing.T) {
 	}
 }
 
-// Older nodes report "applying" once and never the result: settle it once the helper's window
-// has passed, by the version the node came back on.
+// Older nodes report "applying" once and never the result: settle it from the version the node
+// came back on.
 func TestSettledStatus(t *testing.T) {
 	now := time.Unix(10_000, 0)
-	st := &pb.UpgradeStatus{State: "applying", From: "v0.4.4", To: "v0.4.5", Started: now.Add(-5 * time.Minute).Unix()}
-	if got := settledStatus(st, true, "v0.4.5", now); got.State != "upgraded" || st.State != "applying" {
-		t.Fatalf("on the target version: %q (original %q)", got.State, st.State)
+	st := &pb.UpgradeStatus{State: "applying", From: "v0.4.4", To: "v0.4.5", Started: now.Add(-time.Minute).Unix()}
+	if got := settledStatus(st, time.Minute, "v0.4.5", now); got.State != "upgraded" || got.Finished != now.Unix() || st.State != "applying" {
+		t.Fatalf("on the target version: %+v (original %q)", got, st.State)
 	}
-	if got := settledStatus(st, true, "v0.4.4", now); got.State != "rolled_back" || got.Error == "" {
-		t.Fatalf("back on the old version: %+v", got)
+	if got := settledStatus(st, 5*time.Second, "v0.4.5", now); got != st {
+		t.Fatal("settled while the helper may still be checking")
 	}
-	if got := settledStatus(st, false, "v0.4.5", now); got != st {
+	if got := settledStatus(st, 0, "v0.4.5", now); got != st {
 		t.Fatal("offline node settled")
 	}
-	fresh := &pb.UpgradeStatus{State: "applying", From: "v0.4.4", To: "v0.4.5", Started: now.Add(-30 * time.Second).Unix()}
-	if got := settledStatus(fresh, true, "v0.4.5", now); got != fresh {
-		t.Fatal("helper still within its window")
+	if got := settledStatus(st, time.Minute, "v0.4.4", now); got != st {
+		t.Fatal("old version within the helper's window counted as rolled back")
+	}
+	old := &pb.UpgradeStatus{State: "applying", From: "v0.4.4", To: "v0.4.5", Started: now.Add(-6 * time.Minute).Unix()}
+	if got := settledStatus(old, time.Minute, "v0.4.4", now); got.State != "rolled_back" || got.Error == "" {
+		t.Fatalf("back on the old version: %+v", got)
+	}
+}
+
+// A settled result is kept and recorded once.
+func TestSettleNodeUpgradeRecordsOnce(t *testing.T) {
+	m := newTestMaster(t)
+	m.upd = newUpdates()
+	st := &pb.UpgradeStatus{State: "applying", From: "v0.4.4", To: "v0.4.5", Started: 100}
+	m.onNodeUpgrade("n1", st)
+	done := settledStatus(st, time.Minute, "v0.4.5", time.Unix(200, 0))
+	m.settleNodeUpgrade("n1", st, done)
+	m.settleNodeUpgrade("n1", st, done) // a second poll: already settled
+	if m.upd.nodeStat["n1"] != done || m.eventCount("node_upgraded") != 1 {
+		t.Fatalf("stat %+v, events %d", m.upd.nodeStat["n1"], m.eventCount("node_upgraded"))
 	}
 }

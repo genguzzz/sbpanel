@@ -311,14 +311,19 @@ func (m *Master) updateState() updateOut {
 		}
 		json.Unmarshal(n.Info, &info)
 		x.Version, x.Arch = info.Version, info.Arch
+		var up time.Duration // how long the node has been connected; 0 when it isn't
 		if s := m.hub.session(n.ID); s != nil {
+			up = time.Since(s.connectedAt)
 			if h, _, _, _ := s.snapshot(); h != nil {
 				x.Version, x.Arch = h.Version, h.Arch
 				x.Supported = slices.Contains(h.Features, "upgrade")
 				x.Container = slices.Contains(h.Features, "container")
 			}
 		}
-		x.Status = settledStatus(x.Status, x.Online, x.Version, time.Now())
+		if done := settledStatus(x.Status, up, x.Version, time.Now()); done != x.Status {
+			m.settleNodeUpgrade(n.ID, x.Status, done)
+			x.Status = done
+		}
 		x.HasUpdate = newer(out.Latest, x.Version)
 		x.Release = updater.ValidTag(x.Version)
 		out.Nodes = append(out.Nodes, x)
@@ -326,28 +331,50 @@ func (m *Master) updateState() updateOut {
 	return out
 }
 
-// nodeHelperWindow: longer than a node's helper can take after the swap (health timeout plus
-// settling), so an "applying" report older than this is no longer in flight.
-const nodeHelperWindow = 4 * time.Minute
+// sbnode up to v0.4.5 reports its upgrade only once, right after the new binary connects and
+// before its helper records the result, so the panel would show "applying" forever. The master
+// settles such a report itself:
+//   - nodeSettle: the helper confirms a binary within seconds of it connecting (it waits for the
+//     health marker written on connect, then 5s), so a node connected this long on the target
+//     version has been upgraded;
+//   - nodeHelperWindow: longer than the helper can take at all (health timeout plus a rollback),
+//     so a node back on the old version after this was rolled back.
+const (
+	nodeSettle       = 30 * time.Second
+	nodeHelperWindow = 5 * time.Minute
+)
 
-// settledStatus: sbnode up to v0.4.5 reports its upgrade only once, right after the new binary
-// connects and before the helper records the result, so the panel would show "applying" forever.
-// Once the node is online on the target version and the helper's window has passed, that upgrade
-// is done.
-func settledStatus(st *pb.UpgradeStatus, online bool, version string, now time.Time) *pb.UpgradeStatus {
-	if st == nil || st.State != "applying" || !online || now.Sub(time.Unix(st.Started, 0)) < nodeHelperWindow {
+// settledStatus returns st, or a finished copy of it when the node's state shows the outcome.
+// up is how long the node has been connected (0: offline).
+func settledStatus(st *pb.UpgradeStatus, up time.Duration, version string, now time.Time) *pb.UpgradeStatus {
+	if st == nil || st.State != "applying" || up == 0 {
 		return st
 	}
 	done := proto.Clone(st).(*pb.UpgradeStatus)
-	switch version {
-	case st.To:
+	done.Finished = now.Unix()
+	switch {
+	case version == st.To && up >= nodeSettle:
 		done.State = updater.StateUpgraded
-	case st.From:
+	case version == st.From && st.From != st.To && now.Sub(time.Unix(st.Started, 0)) >= nodeHelperWindow:
 		done.State, done.Error = updater.StateRolledBack, st.To+" did not come up; the helper put "+st.From+" back"
 	default:
 		return st
 	}
 	return done
+}
+
+// settleNodeUpgrade keeps a settled result (unless the node reported something newer meanwhile)
+// and records its event, once.
+func (m *Master) settleNodeUpgrade(nodeID string, was, done *pb.UpgradeStatus) {
+	u := m.upd
+	u.mu.Lock()
+	if u.nodeStat[nodeID] != was {
+		u.mu.Unlock()
+		return
+	}
+	u.nodeStat[nodeID] = done
+	u.mu.Unlock()
+	m.recordUpgrade(nodeID, done.State, done.From, done.To, done.Error, done.Rollback, done.Finished)
 }
 
 func (m *Master) apiUpdate(w http.ResponseWriter, r *http.Request) {
