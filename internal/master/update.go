@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"sbpanel/internal/pb"
 	"sbpanel/internal/updater"
 )
@@ -316,11 +318,36 @@ func (m *Master) updateState() updateOut {
 				x.Container = slices.Contains(h.Features, "container")
 			}
 		}
+		x.Status = settledStatus(x.Status, x.Online, x.Version, time.Now())
 		x.HasUpdate = newer(out.Latest, x.Version)
 		x.Release = updater.ValidTag(x.Version)
 		out.Nodes = append(out.Nodes, x)
 	}
 	return out
+}
+
+// nodeHelperWindow: longer than a node's helper can take after the swap (health timeout plus
+// settling), so an "applying" report older than this is no longer in flight.
+const nodeHelperWindow = 4 * time.Minute
+
+// settledStatus: sbnode up to v0.4.5 reports its upgrade only once, right after the new binary
+// connects and before the helper records the result, so the panel would show "applying" forever.
+// Once the node is online on the target version and the helper's window has passed, that upgrade
+// is done.
+func settledStatus(st *pb.UpgradeStatus, online bool, version string, now time.Time) *pb.UpgradeStatus {
+	if st == nil || st.State != "applying" || !online || now.Sub(time.Unix(st.Started, 0)) < nodeHelperWindow {
+		return st
+	}
+	done := proto.Clone(st).(*pb.UpgradeStatus)
+	switch version {
+	case st.To:
+		done.State = updater.StateUpgraded
+	case st.From:
+		done.State, done.Error = updater.StateRolledBack, st.To+" did not come up; the helper put "+st.From+" back"
+	default:
+		return st
+	}
+	return done
 }
 
 func (m *Master) apiUpdate(w http.ResponseWriter, r *http.Request) {

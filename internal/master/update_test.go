@@ -2,6 +2,7 @@ package master
 
 import (
 	"testing"
+	"time"
 
 	"sbpanel/internal/pb"
 )
@@ -34,5 +35,25 @@ func TestUpgradeEvents(t *testing.T) {
 	}
 	if s := m.updateState(); len(s.Nodes) != 0 || s.Current != Version {
 		t.Fatalf("state %+v", s)
+	}
+}
+
+// Older nodes report "applying" once and never the result: settle it once the helper's window
+// has passed, by the version the node came back on.
+func TestSettledStatus(t *testing.T) {
+	now := time.Unix(10_000, 0)
+	st := &pb.UpgradeStatus{State: "applying", From: "v0.4.4", To: "v0.4.5", Started: now.Add(-5 * time.Minute).Unix()}
+	if got := settledStatus(st, true, "v0.4.5", now); got.State != "upgraded" || st.State != "applying" {
+		t.Fatalf("on the target version: %q (original %q)", got.State, st.State)
+	}
+	if got := settledStatus(st, true, "v0.4.4", now); got.State != "rolled_back" || got.Error == "" {
+		t.Fatalf("back on the old version: %+v", got)
+	}
+	if got := settledStatus(st, false, "v0.4.5", now); got != st {
+		t.Fatal("offline node settled")
+	}
+	fresh := &pb.UpgradeStatus{State: "applying", From: "v0.4.4", To: "v0.4.5", Started: now.Add(-30 * time.Second).Unix()}
+	if got := settledStatus(fresh, true, "v0.4.5", now); got != fresh {
+		t.Fatal("helper still within its window")
 	}
 }

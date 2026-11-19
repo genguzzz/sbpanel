@@ -390,7 +390,7 @@ func (a *Agent) session(ctx context.Context) error {
 		return err
 	}
 	a.markHealthy()
-	if err := send(&pb.NodeMsg{M: &pb.NodeMsg_Upgrade{Upgrade: a.upgradeStatus()}}); err != nil {
+	if err := a.reportUpgrade(sctx, send); err != nil {
 		return err
 	}
 	a.log.Printf("connected to master %s as %s", a.master, a.nodeID)

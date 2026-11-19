@@ -1,11 +1,11 @@
-# Runtime image ghcr.io/<owner>/sbpanel. It holds no sbpanel binaries (the entrypoint downloads
-# the release on start), so it only changes with the Dockerfile / entrypoint or its base image.
+# Runtime image ghcr.io/<owner>/sbpanel:latest. It holds no sbpanel binaries (the entrypoint
+# downloads the newest release on every start; SBP_VERSION pins one), so releases don't rebuild
+# it: only a change to the Dockerfile / entrypoint, or a manual run for a new base image.
 # Images carry SLSA provenance and an SBOM, plus a GitHub build provenance attestation
 # (gh attestation verify oci://ghcr.io/genguzzz/sbpanel:<tag> --repo genguzzz/sbpanel).
 name: docker
 on:
   push:
-    tags: ['v*']
     branches: [main]
     paths: [Dockerfile, deploy/docker/**, .github/workflows/docker.yml]
   workflow_dispatch:
@@ -33,23 +33,17 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      # a release tag gets :vX.Y.Z and :X.Y (pinned to that release through SBP_VERSION); :latest
-      # (main or a non-pre release) runs the newest release on every start
       - id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=semver,pattern=v{{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ github.ref_type == 'branch' || !contains(github.ref_name, '-') }}
+          tags: type=raw,value=latest
       # the image is a few MB on Alpine: built without a cache, so nothing from other runs is restored
       - id: push
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          build-args: SBP_VERSION=${{ github.ref_type == 'tag' && github.ref_name || 'latest' }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

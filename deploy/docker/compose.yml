@@ -1,8 +1,7 @@
 # sbpanel with Docker Compose (see "Docker" in the README).
 #   docker compose up -d                   panel only
 #   docker compose --profile node up -d    also a node on this host
-# Upgrade: docker compose pull && docker compose up -d --force-recreate
-#   (:latest fetches the newest release on every start; a tag such as :v0.4.1 pins that release)
+# Upgrade: docker compose restart (every start fetches the newest release; SBP_VERSION pins one)
 #
 # Host networking: the panel sees real client addresses (behind nginx / Caddy on this host and for
 # nodes connecting to it), and a node can listen on whatever ports the panel assigns.
@@ -18,13 +17,14 @@ services:
       SBM_PUBLIC_GRPC: "panel.example.com:9443"  # what nodes dial; shown in Add node
       SBM_TZ: "Asia/Shanghai"
       # SBM_ADMIN_PASSWORD: "change-me"          # first start only; otherwise printed in the log
+      # SBP_VERSION: "v0.4.5"                   # pin a release instead of the newest
       # SBP_MIRROR: "https://<github-proxy>/"    # if GitHub is slow to reach
     volumes:
       - sbmaster:/var/lib/sbmaster
 
   sbnode:
     profiles: [node]
-    image: ghcr.io/genguzzz/sbpanel:latest      # use the same version as the panel
+    image: ghcr.io/genguzzz/sbpanel:latest
     command: node
     restart: unless-stopped
     network_mode: host

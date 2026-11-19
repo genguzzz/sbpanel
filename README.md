@@ -104,18 +104,13 @@ sbmaster reset-admin --user alice --rename admin --password -   # also renames t
 
 The image `ghcr.io/genguzzz/sbpanel` (amd64 / arm64) runs either the panel (`master`) or a node (`node`). It is a small runtime: on start it downloads the sbpanel release, verifies it against the release's `checksums.txt` and caches it in the data volume, so it also starts when GitHub is unreachable.
 
-| Tag | Runs |
-|---|---|
-| `:v0.4.1`, `:0.4` | that release (recommended: panel and nodes on the same tag) |
-| `:latest` | the newest release, checked on every start |
-
-`SBP_VERSION=vX.Y.Z` overrides the release, `SBP_MIRROR=https://<your-github-proxy>/` downloads through a proxy.
+There is one tag, `:latest`; releases don't publish new images. Every start runs the newest release; `SBP_VERSION=vX.Y.Z` pins one, `SBP_MIRROR=https://<your-github-proxy>/` downloads through a proxy.
 
 **Panel**: host networking, the web UI on localhost behind your HTTPS reverse proxy (nginx / Caddy), nodes connect to 9443:
 ```bash
 docker run -d --name sbmaster --restart unless-stopped --network host \
   -e SBM_WEB=127.0.0.1:8080 -e SBM_PUBLIC_GRPC=panel.example.com:9443 \
-  -v sbmaster:/var/lib/sbmaster ghcr.io/genguzzz/sbpanel:v0.4.1
+  -v sbmaster:/var/lib/sbmaster ghcr.io/genguzzz/sbpanel
 docker logs sbmaster 2>&1 | grep -i password    # initial admin password (or set SBM_ADMIN_PASSWORD on first start)
 ```
 Open 9443/tcp in the firewall. Panel settings are the `SBM_*` variables: `SBM_WEB`, `SBM_GRPC` (default `:9443`), `SBM_PUBLIC_GRPC` (the address nodes dial, shown in Add node), `SBM_TZ`, `SBM_ADMIN_PASSWORD`.
@@ -125,7 +120,7 @@ Open 9443/tcp in the firewall. Panel settings are the `SBM_*` variables: `SBM_WE
 docker run -d --name sbnode --restart unless-stopped --network host --cap-add NET_ADMIN \
   -e SBN_MASTER=panel.example.com:9443 -e SBN_TOKEN=<one-time-token> \
   -e SBN_CA_SHA256=<ca-fingerprint> \
-  -v sbnode:/var/lib/sbnode ghcr.io/genguzzz/sbpanel:v0.4.1 node
+  -v sbnode:/var/lib/sbnode ghcr.io/genguzzz/sbpanel node
 ```
 The node enrolls on its first start (the token is single-use; later starts reuse the certificate in the volume) and shows as online within seconds. If the node runs on the same machine as the panel, set the node's public address (Nodes → edit) so subscriptions hand out the server's address, not 127.0.0.1.
 
@@ -133,7 +128,7 @@ The node enrolls on its first start (the token is single-use; later starts reuse
 
 **Compose**: [deploy/docker/compose.yml](deploy/docker/compose.yml) has both services (`docker compose up -d`; add `--profile node` for a node on the same host).
 
-**Upgrade**: change the tag (or pull `:latest`) and recreate: `docker compose pull && docker compose up -d --force-recreate`, or `docker pull …` + `docker rm -f` + the `docker run` above. Data stays in the volumes. Roll back the same way with the previous tag. Settings → Updates shows this instead of its one-click upgrade. Upgrade the panel first, then the nodes.
+**Upgrade**: restart the container (`docker restart sbmaster`, `docker compose restart`); it fetches the newest release and keeps the data in the volumes. To roll back or hold a version, set `SBP_VERSION=vX.Y.Z` and recreate the container. Settings → Updates shows this instead of its one-click upgrade. Upgrade the panel first, then the nodes.
 
 **Other commands** run inside the container, e.g. `docker exec -it sbmaster sbmaster reset-admin --user admin --password -`.
 

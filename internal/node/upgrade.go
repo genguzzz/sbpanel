@@ -55,6 +55,32 @@ func (a *Agent) upgradeStatus() *pb.UpgradeStatus {
 	return out
 }
 
+// upgradePoll: how often reportUpgrade re-reads a helper's progress after a reconnect.
+var upgradePoll = 2 * time.Second
+
+// reportUpgrade sends the upgrade status after a (re)connect. A freshly upgraded sbnode connects
+// while its helper is still confirming it is healthy, so the first report says "applying"; keep
+// watching and send the result once the helper writes it, or the panel shows it as in flight.
+func (a *Agent) reportUpgrade(ctx context.Context, send func(*pb.NodeMsg) error) error {
+	st := a.upgradeStatus()
+	if err := send(&pb.NodeMsg{M: &pb.NodeMsg_Upgrade{Upgrade: st}}); err != nil || st.State != "applying" {
+		return err
+	}
+	go func() {
+		deadline := time.Now().Add(time.Duration(healthTimeout)*time.Second + time.Minute)
+		for st.State == "applying" && time.Now().Before(deadline) {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(upgradePoll):
+			}
+			st = a.upgradeStatus()
+		}
+		send(&pb.NodeMsg{M: &pb.NodeMsg_Upgrade{Upgrade: st}})
+	}()
+	return nil
+}
+
 // upgrade handles MasterMsg.Upgrade: fetch the binary from the master, verify it, and hand
 // over to the helper, which swaps it in, restarts sbnode and rolls back if it doesn't come up.
 func (a *Agent) upgrade(ctx context.Context, m *pb.Upgrade, send func(*pb.NodeMsg) error) {

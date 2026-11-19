@@ -104,18 +104,13 @@ sbmaster reset-admin --user alice --rename admin --password -   # 同时改用�
 
 镜像 `ghcr.io/genguzzz/sbpanel`（amd64 / arm64）可以运行面板（`master`）或节点（`node`）。它只是一个很小的运行环境：启动时下载 sbpanel 发布包，用发布页的 `checksums.txt` 校验后缓存在数据卷里，所以 GitHub 不通时也能启动。
 
-| 标签 | 运行的版本 |
-|---|---|
-| `:v0.4.1`、`:0.4` | 该版本（推荐，面板和节点用同一个标签） |
-| `:latest` | 最新版本，每次启动时检查 |
-
-`SBP_VERSION=vX.Y.Z` 可覆盖版本，`SBP_MIRROR=https://<你的 GitHub 代理>/` 让下载走代理。
+镜像只有一个标签 `:latest`，发版不会重新发布镜像。每次启动都运行最新版本；`SBP_VERSION=vX.Y.Z` 可固定版本，`SBP_MIRROR=https://<你的 GitHub 代理>/` 让下载走代理。
 
 **面板**：使用主机网络，Web 界面只监听本机，前面加 HTTPS 反代（nginx / Caddy），节点连接 9443：
 ```bash
 docker run -d --name sbmaster --restart unless-stopped --network host \
   -e SBM_WEB=127.0.0.1:8080 -e SBM_PUBLIC_GRPC=panel.example.com:9443 \
-  -v sbmaster:/var/lib/sbmaster ghcr.io/genguzzz/sbpanel:v0.4.1
+  -v sbmaster:/var/lib/sbmaster ghcr.io/genguzzz/sbpanel
 docker logs sbmaster 2>&1 | grep -i password    # 初始管理员密码（也可在首次启动时用 SBM_ADMIN_PASSWORD 指定）
 ```
 防火墙放行 9443/tcp。面板配置都是 `SBM_*` 环境变量：`SBM_WEB`、`SBM_GRPC`（默认 `:9443`）、`SBM_PUBLIC_GRPC`（节点连接的地址，会显示在「添加节点」里）、`SBM_TZ`、`SBM_ADMIN_PASSWORD`。
@@ -125,7 +120,7 @@ docker logs sbmaster 2>&1 | grep -i password    # 初始管理员密码（也可
 docker run -d --name sbnode --restart unless-stopped --network host --cap-add NET_ADMIN \
   -e SBN_MASTER=panel.example.com:9443 -e SBN_TOKEN=<一次性令牌> \
   -e SBN_CA_SHA256=<CA 指纹> \
-  -v sbnode:/var/lib/sbnode ghcr.io/genguzzz/sbpanel:v0.4.1 node
+  -v sbnode:/var/lib/sbnode ghcr.io/genguzzz/sbpanel node
 ```
 节点首次启动时完成接入（令牌只能用一次，之后的启动复用数据卷里的证书），几秒内在面板显示在线。如果节点和面板在同一台机器上，请在节点设置里填写公网地址，订阅里才会是服务器地址而不是 127.0.0.1。
 
@@ -133,7 +128,7 @@ docker run -d --name sbnode --restart unless-stopped --network host --cap-add NE
 
 **Compose**：[deploy/docker/compose.yml](deploy/docker/compose.yml) 里有两个服务（`docker compose up -d`；同机再跑节点加 `--profile node`）。
 
-**升级**：改镜像标签（或拉取 `:latest`）后重建容器：`docker compose pull && docker compose up -d --force-recreate`，或 `docker pull …` + `docker rm -f` + 上面的 `docker run`。数据保存在数据卷里。回退同理，换回上一个标签即可。「设置 → 版本更新」会显示这条命令，而不是一键升级。先升级面板，再升级节点。
+**升级**：重启容器即可（`docker restart sbmaster`、`docker compose restart`），会下载最新版本，数据保留在数据卷里。要回退或固定版本，设置 `SBP_VERSION=vX.Y.Z` 后重建容器。「设置 → 版本更新」会显示这条命令，而不是一键升级。先升级面板，再升级节点。
 
 **其他命令**在容器里执行，如 `docker exec -it sbmaster sbmaster reset-admin --user admin --password -`。
 
