@@ -110,7 +110,7 @@ var oaSchemas = js{
 		"id": tInt(""), "username": tStr(""), "sub_token": tStr("Subscription token (/s/<sub_token>)"), "uuid": tStr("VLESS/VMess UUID"),
 		"status": tEnum("Derived from quota and expiry", "active", "limited", "expired"), "enabled": tBool(""),
 		"traffic_limit": tBytes("Quota; 0 = unlimited"), "expire_at": tTS("0 = no expiry"),
-		"reset_strategy": tEnum("", resetEnum...), "note": tStr(""),
+		"reset_strategy": tStr(resetDesc), "note": tStr(""),
 		"used_up": tBytes("Upload this period"), "used_down": tBytes("Download this period"), "life_up": tBytes("Total upload"), "life_down": tBytes("Total download"),
 		"created_at": tTS(""), "online_ips": tInt("Online IPs right now"), "device_limit": tInt("0 = unlimited"),
 		"speed_up": tInt("Upload speed limit in bytes/s; 0 = unlimited"), "speed_down": tInt("Download speed limit in bytes/s; 0 = unlimited"),
@@ -119,7 +119,7 @@ var oaSchemas = js{
 	}),
 	"UserInput": tObj(js{
 		"username": tStr("Letters, digits, . _ @ -; up to 64"), "traffic_limit": tBytes("0 = unlimited"), "expire_at": tTS("0 = never"),
-		"created_at": tTS("PATCH only: account start; anchors month_rolling resets"), "reset_strategy": tEnum("", resetEnum...), "note": tStr(""), "enabled": tBool(""),
+		"created_at": tTS("PATCH only: account start; anchors month_rolling resets"), "reset_strategy": tStr(resetDesc), "note": tStr(""), "enabled": tBool(""),
 		"reset_usage": tBool("PATCH only: reset this period's usage"), "rotate_secrets": tBool("PATCH only: regenerate UUID / password / subscription token"),
 		"device_limit": tInt(""), "speed_up": tInt(""), "speed_down": tInt(""), "group_ids": arr(tInt("")), "sub_profile_id": tInt(""),
 		"limits": arr(tObj(js{"id": tInt("Traffic limit preset"), "traffic_limit": tBytes("Custom size; 0 = the preset's size")})),
@@ -137,7 +137,7 @@ var oaSchemas = js{
 	}, "ids", "action"),
 	"BatchResult": tObj(js{"affected": tInt(""), "undo": arr(tMap("Snapshot; POST it back unchanged with action=restore to undo"))}),
 	"BulkRequest": tObj(js{"prefix": tStr(""), "count": tInt("1-1000"), "start": tInt("Starting number"), "traffic_limit": tBytes(""),
-		"expire_days": tInt(""), "reset_strategy": tEnum("", resetEnum...), "group_ids": arr(tInt(""))}, "prefix", "count"),
+		"expire_days": tInt(""), "reset_strategy": tStr(resetDesc), "group_ids": arr(tInt(""))}, "prefix", "count"),
 	"Node": tObj(js{
 		"id": tStr(""), "name": tStr(""), "address": tStr("Last connected from"), "public_address": tStr("Address used in subscriptions"), "template_id": tInt(""),
 		"online": tBool(""), "enrolled": tBool(""), "revision": tInt("Desired config revision"), "applied_revision": tInt("Applied revision"),

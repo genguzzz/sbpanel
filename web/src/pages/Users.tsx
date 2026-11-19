@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Dialog, DialogTrigger, Popover } from 'react-aria-components'
-import { api, type User, type TopRow, type SeriesResp, type Group, type SubInfo, type UserLimit, type InboundUse, type Limit } from '../lib/api'
+import { api, type User, type TopRow, type SeriesResp, type Group, type SubInfo, type UserLimit, type InboundUse, type Limit, type Node } from '../lib/api'
 import { D as LD } from '../i18n/limits'
 import { bytes, date, dateTime, parseSize, ago, expiresIn, GB, DAY } from '../lib/fmt'
 import { useRoute, go, replace, withParams, href } from '../lib/router'
@@ -25,10 +25,55 @@ const statusInfo: Record<string, { tone: 'good' | 'warn' | 'bad' | 'neutral'; te
   expired: { tone: 'bad', get text() { return tr(D).expired } },
 }
 
-export const resetOptions = [
+// reset_strategy: none | day | week | month_rolling | month (= month:1) | month:N | node:<id>
+type ResetMode = 'none' | 'day' | 'week' | 'month_rolling' | 'monthday' | 'node'
+const resetModes: { id: ResetMode; readonly label: string }[] = [
   { id: 'none', get label() { return tr(D).rNone } }, { id: 'day', get label() { return tr(D).rDay } }, { id: 'week', get label() { return tr(D).rWeek } },
-  { id: 'month', get label() { return tr(D).rMonth } }, { id: 'month_rolling', get label() { return tr(D).rRolling } },
+  { id: 'month_rolling', get label() { return tr(D).rRolling } }, { id: 'monthday', get label() { return tr(D).rMonthDay } }, { id: 'node', get label() { return tr(D).rNode } },
 ]
+const monthDayOf = (s: string) => (s === 'month' ? 1 : s.startsWith('month:') ? Number(s.slice(6)) : 0)
+const resetModeOf = (s: string): ResetMode => (s.startsWith('node:') ? 'node' : monthDayOf(s) ? 'monthday' : ((s || 'none') as ResetMode))
+
+/** Human text for a user's reset strategy. */
+function resetText(s: string, nodes: Node[]): string {
+  const t = tr(D)
+  if (s.startsWith('node:')) {
+    const n = nodes.find((x) => x.id === s.slice(5))
+    return n ? t.rNodeOf(n.name, n.reset_day || 1) : t.rNodeGone
+  }
+  const d = monthDayOf(s)
+  return d ? t.rDayOf(d) : resetModes.find((m) => m.id === (s || 'none'))?.label ?? s
+}
+
+const useNodes = () => useQuery({ queryKey: ['nodes'], queryFn: () => api<Node[]>('/nodes'), staleTime: 30_000 })
+
+/** Usage reset: a cycle, plus the day of the month or the node it follows. */
+function ResetPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const t = useT(D)
+  const nodes = (useNodes().data ?? []).filter((n) => n.enrolled)
+  const mode = resetModeOf(value)
+  const [day, setDay] = useState(String(monthDayOf(value) || new Date().getDate()))
+  const dayN = Number(day)
+  const dayErr = !Number.isInteger(dayN) || dayN < 1 || dayN > 31
+  const pick = (m: ResetMode) => {
+    if (m === 'monthday') onChange(`month:${dayErr ? 1 : dayN}`)
+    else if (m === 'node') onChange(nodes[0] ? `node:${nodes[0].id}` : 'month:1')
+    else onChange(m)
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <Select label={t.resetLabel} value={mode} onChange={pick} options={resetModes.filter((m) => m.id !== 'node' || nodes.length > 0)} />
+      {mode === 'monthday' && (
+        <Field label={t.rDayField} hideLabel value={day} inputMode="numeric" description={t.rDayHint} isInvalid={dayErr} errorMessage={t.rDayHint}
+          onChange={(v) => { setDay(v); const n = Number(v); if (Number.isInteger(n) && n >= 1 && n <= 31) onChange(`month:${n}`) }} />
+      )}
+      {mode === 'node' && (
+        <Select label={t.rNodeField} hideLabel value={value.slice(5)} onChange={(id) => onChange(`node:${id}`)} description={t.rNodeHint}
+          options={nodes.map((n) => ({ id: n.id, label: t.rNodeOf(n.name, n.reset_day || 1) }))} />
+      )}
+    </div>
+  )
+}
 
 const mbps = (bps: number) => (bps > 0 ? +(bps * 8 / 1e6).toFixed(2) + ' Mbps' : tr(D).unlimited)
 const IconQr = (p: { size?: number }) => <svg width={p.size ?? 16} height={p.size ?? 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><path d="M14 14h3v3M21 14v.01M14 21h3M21 17v4h-1" /></svg>
@@ -623,7 +668,7 @@ function UserForm({ u, groups, users, isOpen, onClose, onOpen }: { u?: User; gro
                 className={cx('h-9 w-full rounded-[10px] border bg-base px-3 text-sm outline-none transition-[border-color,box-shadow] duration-(--dur-1) placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent/25', Number.isNaN(limitBytes) && 'border-bad')} />
               <span className={cx('text-xs', Number.isNaN(limitBytes) ? 'text-bad' : 'text-muted')}>{Number.isNaN(limitBytes) ? t.badSize : limitBytes ? `= ${bytes(limitBytes)}` : t.blankUnlimited}</span>
             </div>
-            <Select label={t.resetLabel} value={f.reset} onChange={(v) => set('reset', v)} options={resetOptions} />
+            <ResetPicker value={f.reset} onChange={(v) => set('reset', v)} />
           </div>
           <div className="flex flex-col gap-1.5">
             <div className="text-[13px] font-medium text-subtle">{t.expiry}</div>
@@ -738,7 +783,7 @@ function BulkCreate({ groups, isOpen, onClose }: { groups: Group[]; isOpen: bool
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label={t.quotaGb} value={limit} onChange={setLimit} placeholder={t.unlimited} />
             <Field label={t.validDays} value={days} onChange={setDays} placeholder={t.never} inputMode="numeric" />
-            <Select label={t.resetLabel} value={reset} onChange={setReset} options={resetOptions} />
+            <ResetPicker value={reset} onChange={setReset} />
           </div>
         </div>
         <CheckList label={t.groups} value={gids} onChange={setGids} options={groups.map((g) => ({ id: g.id, label: g.name }))} />
@@ -762,6 +807,7 @@ function UserDrawer({ id, isOpen, groups, ids, tab, onTab, onNav, onClose, onAct
   const patch = useUserPatch()
   const toast = useToast()
   const subUrl = useSubUrl()
+  const nodes = useNodes().data ?? []
   const live = isOpen ? 10000 : false
   const d = useQuery({ queryKey: ['user', id], queryFn: () => api<UserDetail>(`/users/${id}`), refetchInterval: live, placeholderData: keepPreviousData, enabled: isOpen })
   const sub = useQuery({ queryKey: ['user', id, 'sub'], queryFn: () => api<SubInfo>(`/users/${id}/sub`), placeholderData: keepPreviousData, enabled: isOpen })
@@ -823,7 +869,7 @@ function UserDrawer({ id, isOpen, groups, ids, tab, onTab, onNav, onClose, onAct
                 <QuickChip onPress={() => run([u.id], 'add_traffic', 100 * GB, t.added(u.username, 100)).catch(() => {})}>+100GB</QuickChip>
                 <QuickChip isDisabled={!u.traffic_limit} onPress={() => patch(u, { traffic_limit: 0 }, t.unlimitedTraffic(u.username)).catch(() => {})}>{t.unlimited}</QuickChip>
               </>} />
-            <Box label={t.expiry} value={u.expire_at ? date(u.expire_at) : t.never} sub={u.expire_at ? expiresIn(u.expire_at) : t.resetX(resetOptions.find((r) => r.id === (u.reset_strategy || 'none'))?.label ?? '')}
+            <Box label={t.expiry} value={u.expire_at ? date(u.expire_at) : t.never} sub={u.expire_at ? expiresIn(u.expire_at) : t.resetX(resetText(u.reset_strategy, nodes))}
               chips={<>
                 {[7, 30, 90].map((n) => <QuickChip key={n} onPress={() => run([u.id], 'extend_days', n, t.extended(u.username, n)).catch(() => {})}>{t.plusDays(n)}</QuickChip>)}
                 <QuickChip isDisabled={!u.expire_at} onPress={() => patch(u, { expire_at: 0 }, t.neverExpire(u.username)).catch(() => {})}>{t.never}</QuickChip>

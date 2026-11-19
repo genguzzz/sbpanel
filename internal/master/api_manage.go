@@ -740,7 +740,7 @@ type userReq struct {
 
 func (req *userReq) check() error {
 	if req.ResetStrategy != nil && !validReset(*req.ResetStrategy) {
-		return fmt.Errorf("Reset period must be none/day/week/month/month_rolling")
+		return fmt.Errorf("Reset period must be none/day/week/month/month_rolling/month:N/node:<id>")
 	}
 	if req.CreatedAt != nil && (*req.CreatedAt <= 0 || *req.CreatedAt > now()) {
 		return fmt.Errorf("created_at must be a past unix time")

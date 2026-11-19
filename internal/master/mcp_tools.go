@@ -99,7 +99,8 @@ func merge(ms ...map[string]any) map[string]any {
 	return out
 }
 
-var resetEnum = []string{"none", "day", "week", "month", "month_rolling"}
+// resetDesc: reset_strategy values (validReset).
+const resetDesc = "none | day | week (Mondays) | month (the 1st) | month_rolling (the account's creation day) | month:N (day N, 1-31) | node:<node id> (that node's monthly reset day)"
 
 // ---------- tools ----------
 
@@ -189,7 +190,7 @@ func init() {
 				"expire_days":    prop{"type": "number", "description": "从现在起多少天后到期 / days from now until expiry", "minimum": 0.0},
 				"expire_at":      pTime("到期时间（与 expire_days 二选一）/ absolute expiry"),
 				"groups":         prop{"type": "array", "items": prop{"type": []string{"string", "integer"}}, "description": "分组名或 id，不填用默认分组 / group names or ids (default groups if omitted)"},
-				"reset_strategy": pEnum("用量重置周期，默认 month_rolling（按创建日每月重置）/ usage reset cycle, default month_rolling (monthly on the creation day)", resetEnum...),
+				"reset_strategy": pStr("用量重置周期，默认 month_rolling（每月开通日）/ usage reset cycle, default month_rolling: " + resetDesc),
 				"device_limit":   pInt("同时在线设备（IP）数，0 不限 / max concurrent IPs, 0 = unlimited", 0, 0),
 				"note":           pStr("备注 / note"),
 			}),
@@ -203,7 +204,7 @@ func init() {
 				"traffic_gb":     prop{"type": "number", "description": "新流量配额 GB，0 为不限 / new quota in GB, 0 = unlimited", "minimum": 0.0},
 				"expire_at":      prop{"type": []string{"string", "integer"}, "description": "新到期时间，0 为永不到期 / new expiry, 0 = never (unix seconds, RFC 3339 or YYYY-MM-DD)"},
 				"groups":         prop{"type": "array", "items": prop{"type": []string{"string", "integer"}}, "description": "替换分组（名称或 id）/ replace groups (names or ids)"},
-				"reset_strategy": pEnum("用量重置周期 / usage reset cycle", resetEnum...),
+				"reset_strategy": pStr("用量重置周期 / usage reset cycle: " + resetDesc),
 				"device_limit":   pInt("同时在线设备数，0 不限 / max concurrent IPs", 0, 0),
 				"note":           pStr("备注 / note"),
 			})),

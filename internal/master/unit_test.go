@@ -101,6 +101,9 @@ func TestPeriodStart(t *testing.T) {
 		{"month_rolling", "2026-01-20 08:00", "2026-11-25 10:30", "2026-11-20 00:00"},
 		{"month_rolling", "2026-01-31 08:00", "2026-02-28 10:00", "2026-02-28 00:00"}, // clamp to month end
 		{"month_rolling", "2026-01-31 08:00", "2026-03-15 10:00", "2026-02-28 00:00"},
+		{"month:15", "2026-01-31 08:00", "2026-11-14 10:30", "2026-10-15 00:00"},
+		{"month:15", "2026-01-31 08:00", "2026-11-15 00:00", "2026-11-15 00:00"},
+		{"month:31", "2026-01-01 00:00", "2026-03-10 10:00", "2026-02-28 00:00"}, // clamp to month end
 	}
 	for _, c := range cases {
 		got, ok := periodStart(c.strategy, at(c.created), at(c.now), loc)
@@ -110,6 +113,21 @@ func TestPeriodStart(t *testing.T) {
 	}
 	if _, ok := periodStart("none", time.Now(), time.Now(), loc); ok {
 		t.Fatal("none must not have a period")
+	}
+}
+
+func TestResetStrategies(t *testing.T) {
+	for s, want := range map[string]bool{"": true, "none": true, "month_rolling": true, "month:1": true, "month:31": true, "node:9d9a32f41702": true,
+		"month:0": false, "month:32": false, "month:05": false, "month:": false, "node:": false, "node:a b": false, "yearly": false} {
+		if validReset(s) != want {
+			t.Errorf("validReset(%q) = %v", s, !want)
+		}
+	}
+	days := map[string]int{"n1": 18}
+	for in, want := range map[string]string{"node:n1": "month:18", "node:gone": "month:1", "week": "week", "month:3": "month:3"} {
+		if got := resolveReset(in, days); got != want {
+			t.Errorf("resolveReset(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
 

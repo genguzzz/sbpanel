@@ -24,7 +24,72 @@ import (
 // they were created.
 const defaultReset = "month_rolling"
 
-// periodStart is the beginning of the current billing period for a strategy.
+// Usage reset strategies: none, day, week (Mondays), month (the 1st), month_rolling (the day the
+// account was created), month:N (day N, 1-31, clamped to the month's last day) and node:<id>
+// (that node's monthly reset day, so users follow the machine's billing cycle).
+func validReset(s string) bool {
+	switch s {
+	case "", "none", "day", "week", "month", "month_rolling":
+		return true
+	}
+	if d, ok := strings.CutPrefix(s, "month:"); ok {
+		n, err := strconv.Atoi(d)
+		return err == nil && n >= 1 && n <= 31 && strconv.Itoa(n) == d
+	}
+	if id, ok := strings.CutPrefix(s, "node:"); ok {
+		return id != "" && len(id) <= 64 && strings.Trim(id, "0123456789abcdefghijklmnopqrstuvwxyz-_") == ""
+	}
+	return false
+}
+
+// monthAnchor is the day of the month a monthly strategy resets on (0: not monthly). node:<id>
+// must be resolved first (resolveReset).
+func monthAnchor(strategy string, created time.Time, loc *time.Location) int {
+	switch strategy {
+	case "month":
+		return 1
+	case "month_rolling":
+		return created.In(loc).Day()
+	}
+	if d, ok := strings.CutPrefix(strategy, "month:"); ok {
+		n, _ := strconv.Atoi(d)
+		return n
+	}
+	return 0
+}
+
+// nodeResetDays maps node id -> monthly reset day.
+func (m *Master) nodeResetDays() map[string]int {
+	days := map[string]int{}
+	rows, err := m.db.Query(`SELECT id, reset_day FROM nodes`)
+	if err != nil {
+		return days
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		var d int
+		if rows.Scan(&id, &d) == nil {
+			days[id] = d
+		}
+	}
+	return days
+}
+
+// resolveReset turns node:<id> into month:<that node's reset day> (the 1st once the node is gone).
+func resolveReset(strategy string, nodeDays map[string]int) string {
+	id, ok := strings.CutPrefix(strategy, "node:")
+	if !ok {
+		return strategy
+	}
+	d := nodeDays[id]
+	if d < 1 || d > 31 {
+		d = 1
+	}
+	return "month:" + strconv.Itoa(d)
+}
+
+// periodStart is the beginning of the current billing period for a (resolved) strategy.
 func periodStart(strategy string, created, t time.Time, loc *time.Location) (time.Time, bool) {
 	t = t.In(loc)
 	day := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
@@ -34,18 +99,17 @@ func periodStart(strategy string, created, t time.Time, loc *time.Location) (tim
 	case "week":
 		wd := int(day.Weekday()+6) % 7 // Monday = 0
 		return day.AddDate(0, 0, -wd), true
-	case "month":
-		return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, loc), true
-	case "month_rolling":
-		anchor := created.In(loc).Day()
-		start := monthDay(t.Year(), t.Month(), anchor, loc)
-		if start.After(t) {
-			pm := time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, loc).AddDate(0, -1, 0)
-			start = monthDay(pm.Year(), pm.Month(), anchor, loc)
-		}
-		return start, true
 	}
-	return time.Time{}, false
+	anchor := monthAnchor(strategy, created, loc)
+	if anchor == 0 {
+		return time.Time{}, false
+	}
+	start := monthDay(t.Year(), t.Month(), anchor, loc)
+	if start.After(t) {
+		pm := time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, loc).AddDate(0, -1, 0)
+		start = monthDay(pm.Year(), pm.Month(), anchor, loc)
+	}
+	return start, true
 }
 
 // monthDay clamps the anchor day to the month length (Jan 31 -> Feb 28).
@@ -68,8 +132,9 @@ func (m *Master) resetUsage(t time.Time) {
 			return x, s(&x.id, &x.created, &x.last, &x.strategy, &x.status)
 		})
 	changed := false
+	nodeDays := m.nodeResetDays()
 	for _, x := range us {
-		start, ok := periodStart(x.strategy, time.Unix(x.created, 0), t, m.loc)
+		start, ok := periodStart(resolveReset(x.strategy, nodeDays), time.Unix(x.created, 0), t, m.loc)
 		if !ok || x.last >= start.Unix() {
 			continue
 		}

@@ -5,6 +5,15 @@ from the release's section here (`tools/dist`); a tag without a section fails to
 
 ## Unreleased
 
+## v0.4.6 - 2026-11-19
+
+### New
+- Usage reset can follow a fixed day of the month (1–31; short months use their last day) or a
+  node's monthly reset day, so a user's quota renews with the machine's billing cycle. The node's
+  day is set under Nodes → Edit → Monthly reset day. The options read: Never, Daily, Mondays,
+  Monthly on sign-up day, Monthly on a set day, Same as a node.
+- Settings → Updates has a "View on GitHub" button for the latest release, next to its notes.
+
 ### Fixes
 - Node upgrades no longer stay on "Restarting…" after the node is back: the new sbnode now reports
   the result once its upgrade helper has confirmed it, and the panel settles the status of nodes

@@ -172,7 +172,7 @@ func subLang(r *http.Request) string {
 	return acceptLang(r.Header.Get("Accept-Language"))
 }
 
-// nextReset is when the current usage period ends (0 for "none").
+// nextReset is when the current usage period ends (0 for "none"); strategy is resolved.
 func nextReset(strategy string, created time.Time, t time.Time, loc *time.Location) int64 {
 	start, ok := periodStart(strategy, created, t, loc)
 	if !ok {
@@ -183,13 +183,17 @@ func nextReset(strategy string, created time.Time, t time.Time, loc *time.Locati
 		return start.AddDate(0, 0, 1).Unix()
 	case "week":
 		return start.AddDate(0, 0, 7).Unix()
-	case "month":
-		return start.AddDate(0, 1, 0).Unix()
-	case "month_rolling":
-		nm := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, loc).AddDate(0, 1, 0)
-		return monthDay(nm.Year(), nm.Month(), created.In(loc).Day(), loc).Unix()
 	}
-	return 0
+	nm := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, loc).AddDate(0, 1, 0)
+	return monthDay(nm.Year(), nm.Month(), monthAnchor(strategy, created, loc), loc).Unix()
+}
+
+// themeReset is the strategy subscription themes know: every monthly kind is "month".
+func themeReset(strategy string) string {
+	if strings.HasPrefix(strategy, "month:") || strings.HasPrefix(strategy, "node:") {
+		return "month"
+	}
+	return nz(strategy, "none")
 }
 
 func (u subUser) statusKey() string {
@@ -373,12 +377,12 @@ func (m *Master) subData(r *http.Request, u subUser, es []subEntry, t *subTheme)
 	hours, _ := strconv.Atoi(settingOr(m.db, "sub_update_hours", "12"))
 	uj := subUserJSON{Name: u.Username, Status: u.statusKey(), Enabled: u.Enabled, Up: u.Up, Down: u.Down, Used: u.Up + u.Down,
 		Total: u.Limit, ExpireAt: u.ExpireAt, DeviceLimit: u.DeviceLimit,
-		Reset: subReset{Strategy: nz(u.ResetStrategy, "none"), LastAt: u.LastResetAt}}
+		Reset: subReset{Strategy: themeReset(u.ResetStrategy), LastAt: u.LastResetAt}}
 	if u.ExpireAt > 0 {
 		d := int((u.ExpireAt - time.Now().Unix() + 86399) / 86400)
 		uj.DaysLeft = &d
 	}
-	uj.Reset.NextAt = nextReset(u.ResetStrategy, time.Unix(u.CreatedAt, 0), time.Now(), m.loc)
+	uj.Reset.NextAt = nextReset(resolveReset(u.ResetStrategy, m.nodeResetDays()), time.Unix(u.CreatedAt, 0), time.Now(), m.loc)
 	nodes := []subNodeJSON{}
 	for i, e := range es {
 		n := e.nodeJSON(i, string(qrDataURI(e.uri())))

@@ -127,11 +127,19 @@ export function UpdatesSettings() {
             </div>
           )}
 
-          {latest?.notes && (
-            <details className="group rounded-[10px] border px-3 py-2">
-              <summary className="cursor-pointer text-[13px] font-medium text-subtle outline-none select-none">{t.notes} · {latest.tag}</summary>
-              <pre className="mt-2 max-h-72 overflow-auto font-sans text-[13px] leading-5 whitespace-pre-wrap text-subtle">{latest.notes}</pre>
-            </details>
+          {latest && (
+            <div className="flex flex-col gap-2">
+              {latest.notes && (
+                <details className="group rounded-[10px] border px-3 py-2">
+                  <summary className="cursor-pointer text-[13px] font-medium text-subtle outline-none select-none">{t.notes} · {latest.tag}</summary>
+                  <pre className="mt-2 max-h-72 overflow-auto font-sans text-[13px] leading-5 whitespace-pre-wrap text-subtle">{latest.notes}</pre>
+                </details>
+              )}
+              <a href={httpUrl(latest.url)} target="_blank" rel="noopener noreferrer"
+                className="inline-flex h-8 w-fit items-center gap-1.5 rounded-full bg-overlay px-3 text-[13px] font-medium text-text outline-none transition-colors duration-(--dur-1) hover:bg-hl-med/70 focus-visible:ring-2 focus-visible:ring-accent">
+                {t.viewRelease} <span aria-hidden>↗</span>
+              </a>
+            </div>
           )}
 
           <div className="flex flex-col gap-3 border-t pt-4">

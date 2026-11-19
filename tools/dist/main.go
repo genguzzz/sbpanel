@@ -97,6 +97,9 @@ func writeNotes(version, singbox string) error {
 	changes := changelogSection(string(b), version)
 	if changes == "" && !releaseTag(version) {
 		changes = changelogSection(string(b), "Unreleased")
+		if changes == "" {
+			changes = "Development build."
+		}
 	}
 	if changes == "" {
 		return fmt.Errorf("CHANGELOG.md has no entries under \"## %s\": list the changes before tagging", version)

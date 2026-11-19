@@ -721,11 +721,3 @@ func nz(s, d string) string {
 	}
 	return s
 }
-
-func validReset(s string) bool {
-	switch s {
-	case "", "none", "day", "week", "month", "month_rolling":
-		return true
-	}
-	return false
-}

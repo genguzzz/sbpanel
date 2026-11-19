@@ -8,7 +8,9 @@ const days = (n: number) => `${n} day${Math.abs(n) === 1 ? '' : 's'}`
 export const D = dict({
   // status / reset
   active: 'Active', limited: 'Over quota', expired: 'Expired', disabled: 'Disabled',
-  rNone: 'Never', rDay: 'Daily', rWeek: 'Every Monday', rMonth: 'On the 1st of each month', rRolling: 'Monthly from creation date',
+  rNone: 'Never', rDay: 'Daily', rWeek: 'Mondays', rRolling: 'Monthly, sign-up day', rMonthDay: 'Monthly, set day', rNode: 'Same as a node',
+  rDayOf: (d: number) => `Monthly on day ${d}`, rNodeOf: (n: string, d: number) => `With ${n} (day ${d})`, rDayField: 'Day', rDayHint: '1–31; short months use their last day',
+  rNodeField: 'Node', rNodeHint: 'Set its reset day in Nodes → Edit', rNodeGone: 'Node removed (day 1)',
   unlimited: 'Unlimited', online: 'Online', subAgo: (a: string) => `Sub ${a}`,
   user: 'user', nUsers: users,
   // page
@@ -100,7 +102,9 @@ export const D = dict({
   followGroup: 'Follow group / default',
 }, {
   active: '正常', limited: '超额', expired: '已过期', disabled: '已禁用',
-  rNone: '不重置', rDay: '每天', rWeek: '每周一', rMonth: '每月 1 日', rRolling: '按创建日每月',
+  rNone: '不重置', rDay: '每天', rWeek: '每周一', rRolling: '每月开通日', rMonthDay: '每月固定日', rNode: '跟随节点',
+  rDayOf: (d) => `每月 ${d} 日`, rNodeOf: (n, d) => `跟随 ${n}（每月 ${d} 日）`, rDayField: '日期', rDayHint: '1–31，当月没有这天就按月末',
+  rNodeField: '节点', rNodeHint: '重置日在「节点 → 编辑」里设置', rNodeGone: '节点已删除（按 1 日）',
   unlimited: '不限', online: '在线', subAgo: (a) => `订阅 ${a}`,
   user: '用户', nUsers: (n) => `${n} 个用户`,
   title: '用户',

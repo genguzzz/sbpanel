@@ -345,6 +345,8 @@ func TestGuessRegionAndReset(t *testing.T) {
 	cases := map[string]time.Time{
 		"day": time.Date(2026, 2, 16, 0, 0, 0, 0, loc), "week": time.Date(2026, 2, 16, 0, 0, 0, 0, loc),
 		"month": time.Date(2026, 3, 1, 0, 0, 0, 0, loc), "month_rolling": time.Date(2026, 2, 28, 0, 0, 0, 0, loc),
+		"month:10": time.Date(2026, 3, 10, 0, 0, 0, 0, loc), "month:20": time.Date(2026, 2, 20, 0, 0, 0, 0, loc),
+		"month:31": time.Date(2026, 2, 28, 0, 0, 0, 0, loc),
 	}
 	for s, want := range cases {
 		if got := nextReset(s, created, now, loc); got != want.Unix() {

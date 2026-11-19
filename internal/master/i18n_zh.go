@@ -245,7 +245,7 @@ var zhCatalog = map[string]string{
 	"Rate limit must be 1-%d requests/min (0 = default %d)": "速率限制为 1-%d 次/分钟（0 为默认 %d）",
 	"Read only":                   "只读",
 	"Renewal already in progress": "正在续期中",
-	"Reset period must be none/day/week/month/month_rolling":                         "重置周期只能是 none/day/week/month/month_rolling",
+	"Reset period must be none/day/week/month/month_rolling/month:N/node:<id>":       "重置周期只能是 none/day/week/month/month_rolling/month:N/node:<节点 ID>",
 	"Route target doesn't exist: %s":                                                 "路由目标不存在: %s",
 	"Routing profile not found":                                                      "分流配置不存在",
 	"Rule set %s has no Surge source; skipped":                                       "规则集 %s 没有 Surge 源，已跳过",
