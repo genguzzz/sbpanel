@@ -26,7 +26,7 @@ const (
 	passkeyCeremonyTTL = 5 * time.Minute
 	passkeyCeremonyMax = 1000 // pending ceremonies kept in memory
 	passkeyNameMax     = 64
-	passkeyLoginUser   = "passkey" // login limiter / audit name before the admin is known
+	passkeyLoginUser   = "passkey" // audit name before the admin is known
 )
 
 // ---------- ceremony state ----------
@@ -284,8 +284,12 @@ func (m *Master) apiDeletePasskey(w http.ResponseWriter, r *http.Request) {
 
 // ---------- sign-in (public) ----------
 
+// passkeyLimitKey is the login-limiter "username" for passkey attempts whose admin isn't known:
+// one per client address, so failures from some clients never lock passkey sign-in for everyone.
+func passkeyLimitKey(ip string) string { return passkeyLoginUser + "@" + limiterIP(ip) }
+
 func (m *Master) apiPasskeyLoginBegin(w http.ResponseWriter, r *http.Request) {
-	if wait := m.logins.blocked(clientIP(r), passkeyLoginUser); wait > 0 {
+	if wait := m.logins.blocked(clientIP(r), passkeyLimitKey(clientIP(r))); wait > 0 {
 		writeErr(w, 429, T(langOf(w), "Too many failed sign-ins; try again in %d minutes", int(wait.Minutes())+1))
 		return
 	}
@@ -304,7 +308,7 @@ func (m *Master) apiPasskeyLoginBegin(w http.ResponseWriter, r *http.Request) {
 
 func (m *Master) apiPasskeyLoginFinish(w http.ResponseWriter, r *http.Request) {
 	ip := clientIP(r)
-	if wait := m.logins.blocked(ip, passkeyLoginUser); wait > 0 {
+	if wait := m.logins.blocked(ip, passkeyLimitKey(ip)); wait > 0 {
 		writeErr(w, 429, T(langOf(w), "Too many failed sign-ins; try again in %d minutes", int(wait.Minutes())+1))
 		return
 	}
@@ -323,7 +327,11 @@ func (m *Master) apiPasskeyLoginFinish(w http.ResponseWriter, r *http.Request) {
 	}
 	who := passkeyLoginUser
 	fail := func() {
-		m.logins.fail(ip, who)
+		if who == passkeyLoginUser {
+			m.logins.fail(ip, passkeyLimitKey(ip))
+		} else {
+			m.logins.fail(ip, who)
+		}
 		time.Sleep(500 * time.Millisecond)
 		m.db.Exec(`INSERT INTO audit_log(ts, admin, action, target, ip) VALUES(?,?,?,?,?)`, now(), who, "login.failed", "passkey", ip)
 		writeErr(w, 401, "Passkey sign-in failed")

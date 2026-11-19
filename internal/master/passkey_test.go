@@ -282,3 +282,18 @@ func TestPasskeyCeremonyBounds(t *testing.T) {
 		t.Fatal("wrong-kind take must consume the ceremony")
 	}
 }
+
+// Failed passkey sign-ins with an unknown credential lock out only the client that made them.
+func TestPasskeyLimitPerClient(t *testing.T) {
+	var l loginLimiter
+	a, b := "203.0.113.7", "198.51.100.9"
+	for i := 0; i < loginMaxUser+5; i++ {
+		l.fail(a, passkeyLimitKey(a))
+	}
+	if l.blocked(a, passkeyLimitKey(a)) == 0 {
+		t.Fatal("the failing client should be blocked")
+	}
+	if w := l.blocked(b, passkeyLimitKey(b)); w != 0 {
+		t.Fatalf("another client is blocked for %v", w)
+	}
+}
