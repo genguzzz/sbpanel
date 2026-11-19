@@ -1,11 +1,11 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Dialog, Popover } from 'react-aria-components'
 import { keepPreviousData, useQueries, useQuery } from '@tanstack/react-query'
 import { arc, pie, type PieArcDatum } from 'd3-shape'
 import { api, apiRaw, type SeriesResp, type TopRow, type User, type Node } from '../lib/api'
 import { bytes, num, pct, rate } from '../lib/fmt'
 import { useRoute, go } from '../lib/router'
-import { Button, Card, PageHeader, Segmented, Select, Skeleton, cx, popoverCls } from '../ui/kit'
+import { Button, Card, IconButton, PageHeader, Segmented, Select, Skeleton, cx, popoverCls } from '../ui/kit'
 import { TimeChart, TweenBytes, entitySlot, entityColor, seriesColor } from '../ui/charts'
 import { IconCheck, IconSearch, IconX } from '../ui/icons'
 import { tr } from '../i18n'
@@ -100,6 +100,18 @@ export function TrafficPage() {
   }
   const clearAll = () => nav(Object.fromEntries(FILTER_KEYS.map((k) => [k, undefined])))
   const [picker, setPicker] = useState(false)
+  // phones scroll the filter bar sideways: fade whichever edge has more pills behind it
+  const barRef = useRef<HTMLDivElement>(null)
+  const [edges, setEdges] = useState({ start: false, end: false })
+  const fadeEdges = () => {
+    const el = barRef.current
+    if (!el) return
+    const next = { start: el.scrollLeft > 1, end: el.scrollLeft + el.clientWidth < el.scrollWidth - 1 }
+    setEdges((e) => (e.start === next.start && e.end === next.end ? e : next))
+  }
+  useLayoutEffect(fadeEdges)
+  const fade = `linear-gradient(to right, ${edges.start ? 'transparent, #000 24px' : '#000'}, ${edges.end ? '#000 calc(100% - 24px), transparent' : '#000'})`
+  const barFade = edges.start || edges.end ? { maskImage: fade, WebkitMaskImage: fade } : undefined
   // PC can show the filters as a bar of pills (default) or the original side column; phones always get the bar
   const [side, setSideRaw] = useState(() => { try { return localStorage.getItem(FACET_LAYOUT_KEY) === 'side' } catch { return false } })
   const setSide = (v: boolean) => { setSideRaw(v); try { localStorage.setItem(FACET_LAYOUT_KEY, v ? 'side' : 'bar') } catch { /* private mode */ } }
@@ -228,7 +240,8 @@ export function TrafficPage() {
         reflows the page. Values picked from the ranking (domain, host…) show as chips after the pills.
       */}
       <div className={cx('mb-4 flex min-h-11 items-center gap-2 rounded-[12px] border bg-surface px-2 py-1.5', side && 'lg:hidden')}>
-        <div className="-my-1 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-1 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden">
+        <div ref={barRef} onScroll={fadeEdges} style={barFade}
+          className="-my-1 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-1 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden">
           {FACETS.map((k, i) => (
             <FacetPicker key={k} name={dimLabel(k)} ns={k} busy={facetQ[i].isPlaceholderData} loading={facetQ[i].isPending && !facetQ[i].data}
               rows={facetQ[i].data?.rows ?? []} selected={filters[k] ?? []} label={(v) => valueLabel(k, v)}
@@ -237,7 +250,7 @@ export function TrafficPage() {
           {active.filter((k) => !FACETS.includes(k)).flatMap((k) => filters[k]!.map((v) => <FilterChip key={k + v} k={k} label={valueLabel(k, v)} onRemove={() => toggle(k, v)} />))}
           {active.length === 0 && <span className="hidden px-1 text-xs text-muted lg:inline">{t.noFilter}</span>}
         </div>
-        {active.length > 0 && <button type="button" onClick={clearAll} className="shrink-0 cursor-pointer px-2 text-[13px] text-subtle outline-none hover:text-text hover:underline focus-visible:ring-2 focus-visible:ring-accent">{t.clearAll}</button>}
+        {active.length > 0 && <IconButton label={t.clearAll} onPress={clearAll}><IconX size={16} /></IconButton>}
       </div>
 
       {side && (
