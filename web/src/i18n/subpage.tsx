@@ -29,7 +29,7 @@ export const P = dict({
   intro: (doc, link) => <>用户在浏览器里打开订阅链接时看到的页面。页面运行在隔离沙箱中（独立 origin、无 Cookie），主题无法访问面板。主题开发见 {doc}。面板自身的配色在 {link('设置 → 外观')}。</>,
   contentSaved: '订阅页内容已保存', content: '页面内容', save: '保存', cancel: '取消', delete: '删除',
   ann: '公告', annPh: '例如：11 月 20 日 02:00 东京节点维护', annDesc: '显示在页面顶部，可换行，最多 2000 字。留空则不显示。',
-  logo: 'Logo 地址', logoDesc: '正方形图片，需 https。留空时显示站点名首字。站点名在「订阅」页设置。',
+  logo: 'Logo 地址', logoDesc: '正方形图片，需 https。留空时显示站点名首字。站点名在「订阅链接」标签页设置。',
   help: '帮助与联系方式', noLinks: '还没有联系方式。', icon: '图标', name: '名称', namePh: '名称，如 Telegram 群组', removeLink: '删除联系方式', link: '链接', add: '添加',
   clients: '一键导入的客户端', showOnPage: '在订阅页显示',
   clientsHint: '订阅页会按访问设备（iOS / Android / 桌面）把对应客户端排在前面。主题也可以在自己的设置里进一步筛选。',

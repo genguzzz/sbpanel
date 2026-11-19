@@ -172,6 +172,13 @@
 }
 
 html, body, #root { height: 100%; }
+/* Phones: nothing may widen the page (iOS Safari zooms the whole page out when content, even a
+   drawer mid-animation, sticks out past the screen, and doesn't zoom back), and form fields stay at
+   16px so focusing one doesn't zoom the page in. Unlayered, so they win over the utilities. */
+html, body { overflow-x: clip; }
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, select { font-size: max(16px, 1em); }
+}
 body {
   margin: 0;
   background: var(--base);

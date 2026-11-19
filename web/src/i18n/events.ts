@@ -12,8 +12,8 @@ export const D = dict({
   noRecords: 'No records yet', noEvents: 'No events yet',
   time: 'Time', admin: 'Admin', action: 'Action', target: 'Target', ip: 'Source IP',
 }, {
-  node_enrolled: '节点接入', node_online: '节点上线', node_offline: '节点离线', apply_failed: '配置失败',
-  quota_exceeded: '超额', limit_exceeded: '线路限额用尽', user_expired: '到期', users_expired: '到期', user_reactivated: '恢复',
+  node_enrolled: '节点接入', node_online: '节点上线', node_offline: '节点离线', apply_failed: '配置下发失败',
+  quota_exceeded: '超额', limit_exceeded: '线路限额用尽', user_expired: '到期', users_expired: '到期', user_reactivated: '恢复正常',
   node_quota: '节点流量', device_limit: '设备超限', usage_reset: '用量重置', cert_renewed: '证书续期',
   cert_renew_failed: '续期失败', cert_expiring: '证书将过期', inbound_unreachable: '入站不可达', inbound_recovered: '入站恢复',
   update_available: '新版本', panel_upgraded: '面板升级', panel_upgrade_failed: '面板升级失败', node_upgraded: '节点升级', node_upgrade_failed: '节点升级失败',

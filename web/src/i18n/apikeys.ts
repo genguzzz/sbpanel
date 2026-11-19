@@ -4,24 +4,24 @@ import { dict } from '.'
 /** API key scopes and MCP tool descriptions (lib/apikeys.ts). */
 export const K = dict({
   s_read: 'Read only', s_read_d: 'Read users, nodes, inbounds, traffic, events and settings (no key management or backups)',
-  s_users: 'Write users', s_users_d: 'Create, edit and delete users; extend, add traffic, reset usage, batch actions, kick',
+  s_users: 'Write users', s_users_d: 'Create, edit and delete users; extend, add traffic, reset usage, batch actions, disconnect',
   s_nodes: 'Write nodes', s_nodes_d: 'Nodes, inbounds, groups, hosts, route templates and subscription routing profiles',
   s_settings: 'Write settings', s_settings_d: 'Panel settings, appearance, subscription page themes, notification channels',
   s_admin: 'Admin', s_admin_d: 'Everything, including managing API keys, downloading backups and 3x-ui import',
   list_users: 'List / search users', get_user: 'User details and subscription link', traffic_summary: 'Traffic totals by user / node / inbound / domain',
   top_domains: 'Top domains', list_nodes: 'Node health', list_inbounds: 'List inbounds', list_events: 'Events and audit log',
   get_live_connections: 'Online users and live connections', create_user: 'Create a user', update_user: 'Edit a user', extend_user: 'Extend expiry',
-  add_traffic: 'Add traffic', set_user_enabled: 'Enable / disable', reset_usage: 'Reset usage', kick_user: 'Kick offline',
+  add_traffic: 'Add traffic', set_user_enabled: 'Enable / disable', reset_usage: 'Reset usage', kick_user: 'Disconnect a user',
 }, {
   s_read: '只读', s_read_d: '读取用户、节点、入站、流量、事件和设置（不含密钥管理与备份）',
-  s_users: '用户写入', s_users_d: '创建、修改、删除用户，续期、加流量、重置用量、批量操作、踢下线',
-  s_nodes: '节点写入', s_nodes_d: '节点、入站、分组、Host、路由模板与订阅分流方案',
+  s_users: '用户写入', s_users_d: '创建、修改、删除用户，续期、加流量、重置用量、批量操作、断开连接',
+  s_nodes: '节点写入', s_nodes_d: '节点、入站、分组、Host、路由模板与订阅分流配置',
   s_settings: '设置写入', s_settings_d: '面板设置、外观、订阅页主题、通知渠道',
   s_admin: '管理员', s_admin_d: '全部权限，包括管理 API 密钥、下载备份和 3x-ui 导入',
   list_users: '列出/搜索用户', get_user: '用户详情与订阅链接', traffic_summary: '按用户/节点/入站/域名汇总流量',
   top_domains: '热门域名', list_nodes: '节点健康', list_inbounds: '入站列表', list_events: '事件与审计',
   get_live_connections: '在线用户与实时连接', create_user: '创建用户', update_user: '修改用户', extend_user: '续期',
-  add_traffic: '加流量', set_user_enabled: '启用/禁用', reset_usage: '重置用量', kick_user: '踢下线',
+  add_traffic: '加流量', set_user_enabled: '启用/禁用', reset_usage: '重置用量', kick_user: '断开用户连接',
 })
 
 const frag = (...c: ReactNode[]) => h(Fragment, null, ...c)
@@ -79,7 +79,7 @@ export const AG = dict({
   endpoint: '端点', tools: '工具',
   toolsHint: '灰色为只读工具（需要 read）；蓝色为写入工具（需要 users:write），调用记入审计日志 mcp:名称。',
   docsTitle: 'API 文档',
-  docsIntro: '完整的 OpenAPI 3.1 描述覆盖认证、用户（含批量）、节点、入站、分组、Host、模板、分流方案、流量、事件与审计、设置，每个接口标注所需权限。',
+  docsIntro: '完整的 OpenAPI 3.1 描述覆盖认证、用户（含批量）、节点、入站、分组、Host、模板、分流配置、流量、事件与审计、设置，每个接口标注所需权限。',
   auth: '认证', spec: '规范', limit: '超限', limitBody: () => frag('HTTP 429，', mono('Retry-After'), ' 给出等待秒数'),
   openDocs: '打开 API 文档', dlSpec: '下载 openapi.json',
 })

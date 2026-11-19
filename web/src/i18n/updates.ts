@@ -46,7 +46,7 @@ export const U = dict({
   reloading: '面板已升级，正在刷新…',
   auto: '每 6 小时检查一次新版本', autoHint: '有新版本时会显示在这里和顶栏，并按「通知」里的设置推送。',
   mirror: '下载镜像', mirrorHint: 'GitHub 下载地址前缀，与 install.sh --mirror 相同（如 https://ghproxy.example/）。节点始终从面板获取程序。',
-  colNode: '节点', colVersion: '版本', colStatus: '状态', upgradeAll: (n) => `升级落后的节点（${n}）`,
+  colNode: '节点', colVersion: '版本', colStatus: '状态', upgradeAll: (n) => `升级旧版本节点（${n}）`,
   upgrade: '升级', offline: '离线', needsInstall: '需先用 install.sh 升级一次', needsPull: 'Docker：重建容器即升级',
   containerHint: '它运行在 Docker 中。:latest 镜像每次启动都会下载最新版本；版本标签（:v0.4.1）或 SBP_VERSION 会固定版本。升级命令：', noNodes: '还没有节点',
   nPreparing: '准备中…', nSent: '已下发…', nDownloading: '下载中…', nApplying: '重启中…',

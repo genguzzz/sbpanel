@@ -25,11 +25,11 @@ export const O = dict({
   inboundsN: (n: number) => `${n} inbound${s(n)}`, backlog: (n: number) => `${n} pending upload`,
 }, {
   title: '概览', subtitle: '所有节点的实时状态与最近 24 小时流量',
-  today: '今日流量', month: '本月流量', rate: '实时速率', conns: (n) => `${n} 连接`,
+  today: '今日流量', month: '本月流量', rate: '实时速率', conns: (n) => `${n} 个连接`,
   onlineUsers: '在线用户', deviceIps: (n) => `${n} 个设备 IP`, nodesOnline: (a, b) => `节点 ${a}/${b} 在线`,
   chart24: '24 小时流量', toTraffic: '流量分析 →', down: '下行', up: '上行',
   noTraffic: '还没有流量', noTrafficHint: '节点开始转发后，这里会显示每 5 分钟的流量',
-  topUsers: '用户 Top（24h）', noUserTraffic: '暂无用户流量', topDomains: '域名占比（24h）', noDomains: '暂无域名数据',
+  topUsers: '用户排行（24h）', noUserTraffic: '暂无用户流量', topDomains: '热门域名（24h）', noDomains: '暂无域名数据',
   outbounds: '出站分布（24h）', noOutbounds: '暂无出站数据',
   nodes: '节点', manageNodes: '管理节点 →', noNodes: '还没有节点', noNodesHint: '添加一个节点，在服务器上运行一行接入命令即可上线', addNode: '添加节点',
   offline: (n) => `${n} 个节点离线`, failing: (n) => `${n} 个节点配置下发失败`,

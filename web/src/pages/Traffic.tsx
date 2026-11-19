@@ -100,6 +100,9 @@ export function TrafficPage() {
   }
   const clearAll = () => nav(Object.fromEntries(FILTER_KEYS.map((k) => [k, undefined])))
   const [picker, setPicker] = useState(false)
+  // PC can show the filters as a bar of pills (default) or the original side column; phones always get the bar
+  const [side, setSideRaw] = useState(() => { try { return localStorage.getItem(FACET_LAYOUT_KEY) === 'side' } catch { return false } })
+  const setSide = (v: boolean) => { setSideRaw(v); try { localStorage.setItem(FACET_LAYOUT_KEY, v ? 'side' : 'bar') } catch { /* private mode */ } }
   const customRef = useRef<HTMLSpanElement>(null)
 
   const r = ranges.find((x) => x.id === range) ?? ranges[2]
@@ -211,39 +214,69 @@ export function TrafficPage() {
         </div>
         <Select label={t.step} className="w-40" value={stepOpts.includes(Number(stepSel)) ? stepSel : 'auto'} onChange={(v) => set('step', v)}
           options={[{ id: 'auto', label: t.auto(stepLabel(auto)) }, ...stepOpts.map((st) => ({ id: String(st), label: stepLabel(st) }))]} />
+        <div className="ml-auto hidden flex-col gap-1.5 lg:flex">
+          <span className="text-[13px] font-medium text-subtle">{t.facetLayout}</span>
+          <Segmented label={t.facetLayout} value={side ? 'side' : 'bar'} onChange={(v) => setSide(v === 'side')}
+            options={[{ id: 'bar', label: t.layoutBar }, { id: 'side', label: t.layoutSide }]} />
+        </div>
       </div>
 
-      {/* Active filters: every chip is one value; the whole page (trend, facets, ranking) follows them. */}
-      <div className="mb-4 flex min-h-9 flex-wrap items-center gap-2 rounded-[12px] border border-dashed px-3 py-1.5">
-        <span className="text-[13px] font-medium text-subtle">{t.filters}</span>
-        {active.length === 0 && <span className="text-[13px] text-muted">{t.noFilter}</span>}
-        {active.flatMap((k) => filters[k]!.map((v) => (
-          <span key={k + v} className="inline-flex h-7 max-w-full items-center gap-1 rounded-full bg-accent/12 pr-1 pl-3 text-[13px] text-accent-text">
-            <span className="text-subtle">{dimLabel(k)}</span>
-            <span className={cx('truncate font-medium', MONO.includes(k) && 'font-mono text-[12.5px]')}>{valueLabel(k, v)}</span>
-            <button type="button" aria-label={`× ${dimLabel(k)} ${valueLabel(k, v)}`} onClick={() => toggle(k, v)}
-              className="grid size-5 cursor-pointer place-items-center rounded-full outline-none hover:bg-accent/20 focus-visible:ring-2 focus-visible:ring-accent"><IconX size={12} /></button>
-          </span>
-        )))}
-        {active.length > 0 && <button type="button" onClick={clearAll} className="ml-auto cursor-pointer text-[13px] text-subtle outline-none hover:text-text hover:underline focus-visible:ring-2 focus-visible:ring-accent">{t.clearAll}</button>}
+      {/*
+        Filter bar: one pill per dimension; its list opens in a popover, so picking a value never
+        reflows the page. Values picked from the ranking (domain, host…) show as chips after the pills.
+      */}
+      <div className={cx('mb-4 flex min-h-11 items-center gap-2 rounded-[12px] border bg-surface px-2 py-1.5', side && 'lg:hidden')}>
+        <div className="-my-1 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-1 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden">
+          {FACETS.map((k, i) => (
+            <FacetPicker key={k} name={dimLabel(k)} ns={k} busy={facetQ[i].isPlaceholderData} loading={facetQ[i].isPending && !facetQ[i].data}
+              rows={facetQ[i].data?.rows ?? []} selected={filters[k] ?? []} label={(v) => valueLabel(k, v)}
+              onToggle={(v) => toggle(k, v)} onClear={() => nav({ [k]: undefined })} />
+          ))}
+          {active.filter((k) => !FACETS.includes(k)).flatMap((k) => filters[k]!.map((v) => (
+            <span key={k + v} className="inline-flex h-8 max-w-[16rem] shrink-0 items-center gap-1 rounded-full bg-accent/12 pr-1 pl-3 text-[13px] text-accent-text">
+              <span className="shrink-0 text-subtle">{dimLabel(k)}</span>
+              <span className={cx('truncate font-medium', MONO.includes(k) && 'font-mono text-[12.5px]')}>{valueLabel(k, v)}</span>
+              <button type="button" aria-label={`× ${dimLabel(k)} ${valueLabel(k, v)}`} onClick={() => toggle(k, v)}
+                className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-full outline-none hover:bg-accent/20 focus-visible:ring-2 focus-visible:ring-accent"><IconX size={12} /></button>
+            </span>
+          )))}
+          {active.length === 0 && <span className="hidden px-1 text-xs text-muted lg:inline">{t.noFilter}</span>}
+        </div>
+        {active.length > 0 && <button type="button" onClick={clearAll} className="shrink-0 cursor-pointer px-2 text-[13px] text-subtle outline-none hover:text-text hover:underline focus-visible:ring-2 focus-visible:ring-accent">{t.clearAll}</button>}
       </div>
 
-      <div className="grid items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-        {/* Facets: each dimension's split under every *other* filter. */}
-        <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-4">
-          <Card title={t.facets}>
-            <p className="-mt-1 mb-3 text-xs text-muted">{t.facetsHint}</p>
-            <div className="-mx-2 flex flex-col divide-y">
-              {FACETS.map((k, i) => (
-                <Facet key={k} name={dimLabel(k)} ns={k} busy={facetQ[i].isPlaceholderData} loading={facetQ[i].isPending && !facetQ[i].data}
-                  rows={facetQ[i].data?.rows ?? []} selected={filters[k] ?? []} onToggle={(v) => toggle(k, v)} />
-              ))}
-            </div>
-          </Card>
-        </aside>
+      {side && (
+        <div className="mb-4 hidden min-h-9 flex-wrap items-center gap-2 rounded-[12px] border border-dashed px-3 py-1.5 lg:flex">
+          <span className="text-[13px] font-medium text-subtle">{t.filters}</span>
+          {active.length === 0 && <span className="text-[13px] text-muted">{t.noFilter}</span>}
+          {active.flatMap((k) => filters[k]!.map((v) => (
+            <span key={k + v} className="inline-flex h-7 max-w-full items-center gap-1 rounded-full bg-accent/12 pr-1 pl-3 text-[13px] text-accent-text">
+              <span className="text-subtle">{dimLabel(k)}</span>
+              <span className={cx('truncate font-medium', MONO.includes(k) && 'font-mono text-[12.5px]')}>{valueLabel(k, v)}</span>
+              <button type="button" aria-label={`× ${dimLabel(k)} ${valueLabel(k, v)}`} onClick={() => toggle(k, v)}
+                className="grid size-5 cursor-pointer place-items-center rounded-full outline-none hover:bg-accent/20 focus-visible:ring-2 focus-visible:ring-accent"><IconX size={12} /></button>
+            </span>
+          )))}
+          {active.length > 0 && <button type="button" onClick={clearAll} className="ml-auto cursor-pointer text-[13px] text-subtle outline-none hover:text-text hover:underline focus-visible:ring-2 focus-visible:ring-accent">{t.clearAll}</button>}
+        </div>
+      )}
 
+      <div className={cx('grid items-start gap-4', side && 'lg:grid-cols-[300px_minmax(0,1fr)]')}>
+        {side && (
+          <aside className="hidden min-w-0 flex-col gap-4 lg:sticky lg:top-4 lg:flex">
+            <Card title={t.facets}>
+              <p className="-mt-1 mb-3 text-xs text-muted">{t.facetsSideHint}</p>
+              <div className="-mx-2 flex flex-col divide-y">
+                {FACETS.map((k, i) => (
+                  <Facet key={k} name={dimLabel(k)} ns={k} busy={facetQ[i].isPlaceholderData} loading={facetQ[i].isPending && !facetQ[i].data}
+                    rows={facetQ[i].data?.rows ?? []} selected={filters[k] ?? []} onToggle={(v) => toggle(k, v)} />
+                ))}
+              </div>
+            </Card>
+          </aside>
+        )}
         <div className="flex min-w-0 flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <div className={cx('grid grid-cols-2 gap-3', side ? 'xl:grid-cols-4' : 'lg:grid-cols-4')}>
             <Kpi label={t.kTotal} value={<TweenBytes value={stats.down + stats.up} />} sub={<>↓ {bytes(stats.down)} · ↑ {bytes(stats.up)}</>} />
             <Kpi label={t.kPeak} value={rate(stats.peak)} sub={stats.peakAt ? t.kPeakAt(md(new Date(stats.peakAt * 1000))) : t.kAvg(rate((stats.down + stats.up) / Math.max(1, span)))} />
             <Kpi label={t.kConns} value={num(stats.conns)} sub={t.kAvg(`${num(Math.round(stats.conns / Math.max(1, span / 3600)))}/h`)} />
@@ -321,7 +354,11 @@ function Kpi({ label, value, sub }: { label: string; value: ReactNode; sub?: Rea
   )
 }
 
+const FACET_LAYOUT_KEY = 'sbp.traffic.facets'
 const FACET_N = 5
+const FACET_SEARCH = 8
+
+/** Side-column dimension (PC, "side" layout): a 100% composition bar, then the ranked values. */
 
 /** One filter dimension: a 100% composition bar, then the ranked values; click toggles a filter. */
 function Facet({ name, ns, rows, selected, onToggle, busy, loading }: {
@@ -376,6 +413,87 @@ function Facet({ name, ns, rows, selected, onToggle, busy, loading }: {
   )
 }
 
+
+/**
+ * One filter dimension as a pill. Its values open in a popover: a 100% composition bar, then the
+ * ranked values (multi-select; the list is computed under every *other* filter, so it stays put
+ * while you pick).
+ */
+function FacetPicker({ name, ns, rows, selected, label, onToggle, onClear, busy, loading }: {
+  name: string; ns: string; rows: TopRow[]; selected: string[]; label: (k: string) => string
+  onToggle: (k: string) => void; onClear: () => void; busy?: boolean; loading?: boolean
+}) {
+  const ref = useRef<HTMLButtonElement>(null)
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const t = tr(TR)
+  const total = rows.reduce((a, x) => a + x.up + x.down, 0)
+  const color = (k: string, i: number) => (i < 8 ? entityColor(ns, k) : OTHER_COLOR)
+  const shown = q ? rows.filter((x) => x.label.toLowerCase().includes(q.toLowerCase())) : rows
+  const on = selected.length > 0
+  return (
+    <span className={cx('inline-flex h-8 shrink-0 items-center rounded-full border text-[13px] transition-colors', on ? 'border-accent/40 bg-accent/12 text-accent-text' : 'bg-base hover:border-hl-high')}>
+      <button ref={ref} type="button" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}
+        className={cx('inline-flex h-full max-w-[15rem] cursor-pointer items-center gap-1.5 rounded-full pl-3 outline-none focus-visible:ring-2 focus-visible:ring-accent', on ? 'pr-1' : 'pr-3')}>
+        <span className={cx('shrink-0', on ? 'text-subtle' : 'font-medium')}>{name}</span>
+        {on ? <span className="truncate font-medium">{label(selected[0])}{selected.length > 1 && ` +${selected.length - 1}`}</span>
+          : <span className="text-xs text-muted tabular">{loading ? '…' : num(rows.length)}</span>}
+        {!on && <span className="text-[10px] text-muted">▾</span>}
+      </button>
+      {on && (
+        <button type="button" aria-label={t.clearDim(name)} onClick={onClear}
+          className="mr-1 grid size-6 shrink-0 cursor-pointer place-items-center rounded-full outline-none hover:bg-accent/20 focus-visible:ring-2 focus-visible:ring-accent"><IconX size={12} /></button>
+      )}
+      <Popover triggerRef={ref} isOpen={open} onOpenChange={(v) => { setOpen(v); if (!v) setQ('') }} placement="bottom start"
+        className={cx('w-[340px] max-w-[calc(100vw-24px)]', popoverCls)}>
+        <Dialog aria-label={name} className={cx('flex max-h-[min(440px,70vh)] flex-col p-2 outline-none transition-opacity', busy && 'opacity-60')}>
+          <div className="mb-2 flex items-baseline justify-between gap-2 px-1">
+            <span className="text-[13px] font-semibold">{name}</span>
+            <span className="text-xs text-muted">{t.facetsHint}</span>
+          </div>
+          {loading ? <Skeleton className="h-24" /> : rows.length === 0 ? <div className="px-1 py-4 text-center text-xs text-muted">{t.empty}</div> : (
+            <>
+              <div className="mx-1 mb-2 flex h-2 shrink-0 overflow-hidden rounded-full bg-overlay" aria-hidden>
+                {rows.slice(0, 9).map((x, i) => (
+                  <div key={x.key} className={cx('h-full', on && !selected.includes(x.key) && 'opacity-30')}
+                    style={{ width: `${pct(i < 8 ? x.up + x.down : rows.slice(8).reduce((a, y) => a + y.up + y.down, 0), total)}%`, background: color(x.key, i) }} />
+                ))}
+              </div>
+              {rows.length > FACET_SEARCH && (
+                <label className="relative mx-1 mb-2 block shrink-0">
+                  <IconSearch size={14} className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" />
+                  <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={t.filter} aria-label={t.filter}
+                    className="h-9 w-full rounded-full border bg-base pr-3 pl-8 text-base outline-none focus:border-accent sm:text-[13px]" />
+                </label>
+              )}
+              <ul className="-mx-0.5 flex min-h-0 flex-col overflow-y-auto overscroll-contain">
+                {shown.map((x) => {
+                  const i = rows.indexOf(x)
+                  const sel = selected.includes(x.key)
+                  return (
+                    <li key={x.key}>
+                      <button type="button" aria-pressed={sel} onClick={() => onToggle(x.key)} title={x.label}
+                        className={cx('flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-[8px] px-2 py-1 text-left text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent',
+                          sel ? 'bg-accent/12 text-accent-text' : 'hover:bg-overlay')}>
+                        <span className="grid size-3.5 shrink-0 place-items-center rounded-[4px]" style={{ background: sel ? undefined : color(x.key, i) }}>
+                          {sel && <IconCheck size={13} />}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate">{x.label}</span>
+                        <span className="shrink-0 text-xs tabular text-subtle">{bytes(x.up + x.down)}</span>
+                        <span className="w-9 shrink-0 text-right text-[11px] text-muted tabular">{pct(x.up + x.down, total).toFixed(0)}%</span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </>
+          )}
+        </Dialog>
+      </Popover>
+    </span>
+  )
+}
+
 type Slice = { key: string; label: string; value: number; color: string }
 
 /** SVG donut of the ranking's top slices; hover is shared with the legend and the table. */
@@ -419,13 +537,13 @@ function RankTable({ dim, rows, total, colorOf, hover, onHover, selected, onTogg
       <table className="w-full text-[13px]">
         <thead className="sticky top-0 z-[1] bg-surface text-left text-xs text-subtle">
           <tr className="border-b">
-            <th className="w-10 py-2 pl-5 font-medium">{t.rankCol}</th>
-            <th className="px-2 py-2 font-medium">{dimLabel(dim)}</th>
+            <th className="hidden w-10 py-2 pl-5 font-medium sm:table-cell">{t.rankCol}</th>
+            <th className="py-2 pr-2 pl-4 font-medium sm:pl-2">{dimLabel(dim)}</th>
             <th className="w-[22%] px-2 py-2 font-medium">{t.share}</th>
-            <th className="px-2 py-2 text-right font-medium">{t.down}</th>
-            <th className="px-2 py-2 text-right font-medium">{t.up}</th>
-            <th className="px-2 py-2 text-right font-medium">{t.conns}</th>
-            <th className="py-2 pr-5 pl-2 text-right font-medium">{t.usersCol}</th>
+            <th className="py-2 pr-4 pl-2 text-right font-medium sm:pr-2">{t.down}</th>
+            <th className="hidden px-2 py-2 text-right font-medium sm:table-cell">{t.up}</th>
+            <th className="hidden px-2 py-2 text-right font-medium sm:table-cell">{t.conns}</th>
+            <th className="hidden py-2 pr-5 pl-2 text-right font-medium sm:table-cell">{t.usersCol}</th>
           </tr>
         </thead>
         <tbody>
@@ -436,8 +554,8 @@ function RankTable({ dim, rows, total, colorOf, hover, onHover, selected, onTogg
             return (
               <tr key={x.key} onClick={() => onToggle(x.key)} onMouseEnter={() => onHover(x.key)} onMouseLeave={() => onHover(null)}
                 title={t.filterThis} className={cx('cursor-pointer border-b transition-colors last:border-0', on ? 'bg-accent/10' : hover === x.key ? 'bg-hl-low' : 'hover:bg-hl-low')}>
-                <td className="py-2 pl-5 text-xs text-muted tabular">{i + 1}</td>
-                <td className="max-w-[280px] px-2 py-2">
+                <td className="hidden py-2 pl-5 text-xs text-muted tabular sm:table-cell">{i + 1}</td>
+                <td className="max-w-[160px] py-2 pr-2 pl-4 sm:max-w-[280px] sm:pl-2">
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="size-2 shrink-0 rounded-full" style={{ background: c ?? 'transparent' }} />
                     <span className={cx('truncate', MONO.includes(dim) && 'font-mono text-[12.5px]', on && 'font-semibold text-accent-text')} title={x.label}>{x.label}</span>
@@ -452,10 +570,10 @@ function RankTable({ dim, rows, total, colorOf, hover, onHover, selected, onTogg
                     <span className="w-11 shrink-0 text-right text-xs text-muted tabular">{pct(v, total).toFixed(1)}%</span>
                   </div>
                 </td>
-                <td className="px-2 py-2 text-right tabular">{bytes(x.down)}</td>
-                <td className="px-2 py-2 text-right tabular text-subtle">{bytes(x.up)}</td>
-                <td className="px-2 py-2 text-right tabular text-subtle">{num(x.conns)}</td>
-                <td className="py-2 pr-5 pl-2 text-right tabular text-subtle">{x.users}</td>
+                <td className="py-2 pr-4 pl-2 text-right tabular whitespace-nowrap sm:pr-2">{bytes(x.down)}</td>
+                <td className="hidden px-2 py-2 text-right tabular text-subtle sm:table-cell">{bytes(x.up)}</td>
+                <td className="hidden px-2 py-2 text-right tabular text-subtle sm:table-cell">{num(x.conns)}</td>
+                <td className="hidden py-2 pr-5 pl-2 text-right tabular text-subtle sm:table-cell">{x.users}</td>
               </tr>
             )
           })}

@@ -94,7 +94,32 @@ export function InboundsPage() {
       <div className="flex flex-col gap-4">
         {(nodes.data ?? []).filter((n) => byNode.has(n.id)).map((n) => (
           <Card key={n.id} title={<span>{n.name} <span className="ml-1 text-[13px] font-normal text-subtle">{n.address}</span></span>} pad={false}>
-            <div className="overflow-x-auto">
+            {/* phones: one card per inbound, actions always visible */}
+            <ul className="divide-y md:hidden">
+              {byNode.get(n.id)!.map((i) => (
+                <li key={i.id} className="flex flex-col gap-2 px-4 py-3">
+                  <div className="flex items-start gap-2.5">
+                    <span className="pt-1"><HealthDot results={probeOf(i.id)} running={runningFor({ inbound_id: i.id })} onPress={() => probeOf(i.id).length ? setProbeView({ title: T().connOf(i.tag), target: { inbound_id: i.id } }) : test(T().connOf(i.tag), { inbound_id: i.id })} /></span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{i.tag}</div>
+                      {i.remark && <div className="truncate text-xs text-muted">{i.remark}</div>}
+                    </div>
+                    <Switch label={T().enableX(i.tag)} isSelected={i.enabled} isDisabled={toggle.isPending && toggle.variables?.id === i.id} onChange={() => toggle.mutate(i)} />
+                  </div>
+                  <div className="flex items-center gap-2 pl-5 text-xs text-subtle">
+                    <Badge tone="accent">{i.type}</Badge>
+                    <span className="font-mono tabular">:{i.port}</span>
+                    <span className="min-w-0 flex-1 truncate">{describe(i)}</span>
+                    <span className="-my-1 flex shrink-0">
+                      <IconButton label={T().testX(i.tag)} isDisabled={!i.enabled} onPress={() => test(T().connOf(i.tag), { inbound_id: i.id })}><IconProbe /></IconButton>
+                      <IconButton label={tr(C).edit} onPress={() => setEditing(i)}><IconEdit size={16} /></IconButton>
+                      <IconButton label={tr(C).delete} onPress={() => setDeleting(i)}><IconTrash size={16} /></IconButton>
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-[13px] whitespace-nowrap">
               <thead className="text-left text-xs text-subtle">
                 <tr className="border-b"><th className="w-0 py-2 pr-0 pl-3 font-medium"><span className="sr-only">{T().conn}</span></th><th className="px-3 py-2 font-medium">{T().colTag}</th><th className="px-3 py-2 font-medium">{T().colProto}</th>
@@ -124,7 +149,7 @@ export function InboundsPage() {
         ))}
       </div>
       <Presence value={nodes.data ? editing : null}>
-        {(e, open) => <InboundEditor isOpen={open} nodes={nodes.data ?? []} groups={groups.data ?? []} inbounds={inbounds.data ?? []} value={e === 'new' ? null : e} preNode={preNode} onClose={() => setEditing(null)} />}
+        {(e, open) => <InboundEditor key={e === 'new' ? 'new' : e.id} isOpen={open} nodes={nodes.data ?? []} groups={groups.data ?? []} inbounds={inbounds.data ?? []} value={e === 'new' ? null : e} preNode={preNode} onClose={() => setEditing(null)} />}
       </Presence>
       <ProbeDrawer isOpen={!!probeView} onClose={() => setProbeView(null)} title={probeSticky?.title ?? ''} results={viewResults}
         running={!!probeSticky && runProbe.isPending} onRetry={() => probeSticky && runProbe.mutate(probeSticky.target)} />
@@ -180,15 +205,34 @@ function DnsStatus({ host, nodeId, nodeName, cdn, protocol, acme }: { host: stri
   let tone: 'good' | 'warn' | 'neutral' | 'bad' = 'warn'
   let text: string
   if (d.proxied) { tone = cdn ? 'neutral' : 'warn'; text = cdn ? t.dnsProxied : t.dnsProxiedNoCdn(protocol) }
-  else if (d.status === 'ok') { tone = 'good'; text = t.dnsOk(list(d.ips), nodeName) }
-  else if (d.status === 'partial') text = t.dnsPartial(list(d.ips.filter((ip) => !d.node_ips.includes(ip))), nodeName)
-  else if (d.status === 'mismatch') text = t.dnsMismatch(list(d.ips), nodeName, list(d.node_ips))
+  else if (d.status === 'ok') { tone = 'good'; text = t.dnsOk(nodeName) }
+  else if (d.status === 'partial') text = t.dnsPartial(nodeName)
+  else if (d.status === 'mismatch') text = t.dnsMismatch(nodeName, list(d.node_ips))
   else if (d.status === 'unknown') { tone = 'neutral'; text = t.dnsUnknown(nodeName) }
   else text = d.error ? t.dnsError(d.error) : t.dnsNone(d.host)
   const acmeBad = acme && (d.proxied || d.status !== 'ok')
+  const showIps = !d.proxied && d.ips.length > 0 && d.status !== 'unknown'
+  // a family the node has but the domain lacks: clients on that family can't connect
+  const v6 = (ip: string) => ip.includes(':')
+  const missing = showIps ? (['IPv4', 'IPv6'] as const).filter((f) => d.node_ips.some((ip) => v6(ip) === (f === 'IPv6')) && !d.ips.some((ip) => v6(ip) === (f === 'IPv6'))) : []
   return (
     <Callout tone={acmeBad ? 'bad' : tone}>
       <div data-testid="dns-status" data-status={d.proxied ? 'proxied' : d.status}>{text}</div>
+      {showIps && (
+        <ul className="mt-1.5 flex flex-col gap-0.5 text-xs">
+          {[...d.ips].sort((a, b) => Number(v6(a)) - Number(v6(b))).map((ip) => {
+            const mine = d.node_ips.includes(ip)
+            return (
+              <li key={ip} className="flex items-baseline gap-2">
+                <span className="w-9 shrink-0 text-muted">{v6(ip) ? 'IPv6' : 'IPv4'}</span>
+                <span className="font-mono break-all">{ip}</span>
+                <span className={cx('shrink-0', mine ? 'text-good' : 'text-bad')}>{mine ? `✓ ${nodeName}` : `✗ ${t.dnsNotNode}`}</span>
+              </li>
+            )
+          })}
+          {missing.map((f) => <li key={f} className="flex items-baseline gap-2"><span className="w-9 shrink-0 text-muted">{f}</span><span className="text-muted">{t.dnsNoFamily(f)}</span></li>)}
+        </ul>
+      )}
       {acmeBad && <div className="mt-1">{t.dnsAcmeBad}</div>}
       {tone !== 'good' && (
         <div className="mt-1 flex gap-3 text-xs">
@@ -256,11 +300,10 @@ function InboundEditor({ nodes, groups, inbounds, value, onClose, isOpen, preNod
   // field errors (new inbounds built from the form; hand-edited JSON is taken as is)
   const errs = useMemo(() => {
     const e: Record<string, string> = {}
-    if (value) {
-      if (inbounds.some((i) => i.id !== value.id && i.tag === tag.trim())) e.tag = t.tagUsed
-      return e
-    }
-    if (inbounds.some((i) => i.tag === tag.trim())) e.tag = t.tagUsed
+    // tags are unique per node (UNIQUE(node_id, tag)); the inbound being edited doesn't clash with itself
+    if (!tag.trim()) e.tag = t.tagNeeded
+    else if (inbounds.some((i) => i.id !== value?.id && i.node_id === (value?.node_id ?? nodeId) && i.tag === tag.trim())) e.tag = t.tagUsed
+    if (value) return e
     if (jsonTouched) return e
     if (!Number.isInteger(portN) || portN < 1 || portN > 65535) e.port = t.portRange
     else {
@@ -275,7 +318,8 @@ function InboundEditor({ nodes, groups, inbounds, value, onClose, isOpen, preNod
       if (cert.src === 'panel') {
         const sel = certs.data?.find((c) => c.id === cert.certId)
         if (!sel) e.cert = t.pickCert
-        else if (!de && !covers(sel.sans, domain.trim())) e.cert = t.certPanelBad(domain.trim())
+        // a node-file certificate the node hasn't reported yet has no names to check
+        else if (!de && sel.sans.length > 0 && !covers(sel.sans, domain.trim())) e.cert = t.certPanelBad(domain.trim())
       }
     }
     if (p.id === 'vless-reality') {
@@ -391,11 +435,21 @@ function InboundEditor({ nodes, groups, inbounds, value, onClose, isOpen, preNod
   )
 }
 
+/**
+ * Certificates an inbound on this node can use: ones the master holds (issued or uploaded), and
+ * node-file certificates imported for this very node (the master only knows their paths, so they
+ * never "have material"). The current choice stays listed even if it no longer qualifies.
+ */
+export function usableCerts(certs: Cert[], nodeId: string, current = ''): Cert[] {
+  return certs.filter((c) => c.id === current || (c.source === 'node' ? c.node_id === nodeId : c.has_material))
+}
+
 /** Certificate source: panel certificate (select), files on the node, or node-side ACME. */
 function CertSourcePicker({ value, onChange, certs, nodeId, sni, error }: { value: CertChoice; onChange: (c: CertChoice) => void; certs: Cert[]; nodeId: string; sni: string; error?: string }) {
-  const usable = certs.filter((c) => c.has_material && (c.source !== 'node' || c.node_id === nodeId) || c.id === value.certId)
+  const usable = usableCerts(certs, nodeId, value.certId)
   const sel = certs.find((c) => c.id === value.certId)
-  const mismatch = value.src === 'panel' && sel && sni && !covers(sel.sans, sni)
+  const mismatch = value.src === 'panel' && sel && sni && sel.sans.length > 0 && !covers(sel.sans, sni)
+  const pending = value.src === 'panel' && sel?.source === 'node' && sel.sans.length === 0
   const le = isHostname(sni) ? sni : 'example.com'
   return (
     <fieldset className="flex flex-col gap-3 rounded-[12px] border p-3">
@@ -408,8 +462,9 @@ function CertSourcePicker({ value, onChange, certs, nodeId, sni, error }: { valu
         <>
           <Select label={T().cert} value={value.certId} onChange={(certId) => onChange({ ...value, certId })} placeholder={T().chooseCert}
             options={usable.map((c) => ({ id: c.id, label: certLabel(c) }))}
-            description={T().certHint} />
+            description={sel?.source === 'node' ? T().certHintNode : T().certHint} />
           {mismatch && <span className="text-xs text-bad">{T().certMismatch(sni)}</span>}
+          {pending && <span className="text-xs text-warn">{T().certNotReported}</span>}
         </>
       ) : (
         <p className="text-[13px] text-subtle">{T().noCerts}<a className="text-accent underline-offset-2 hover:underline" href={href('certs')}>{T().goCerts}</a></p>
