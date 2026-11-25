@@ -14,7 +14,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.26.10
 	go.etcd.io/bbolt v1.5.0
 	golang.org/x/crypto v0.59.0
-	golang.org/x/net v0.62.0
+	golang.org/x/net v0.63.0
 	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
 	modernc.org/sqlite v1.62.0
