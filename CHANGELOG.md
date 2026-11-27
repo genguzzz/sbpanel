@@ -5,6 +5,14 @@ from the release's section here (`tools/dist`); a tag without a section fails to
 
 ## Unreleased
 
+## v0.4.7 - 2026-11-27
+
+### New
+- A "Report an issue" button in the header opens a new GitHub issue, prefilled with the panel
+  version and browser so reports arrive with context.
+- The sidebar (and the More sheet on phones) ends with "Powered by sbpanel <version>", linking to
+  the source repository on GitHub, next to the same "Report an issue" link.
+
 ## v0.4.6 - 2026-11-19
 
 ### New

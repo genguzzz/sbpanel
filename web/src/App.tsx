@@ -8,7 +8,7 @@ import { useSubUrl } from './lib/actions'
 import { C } from './i18n/common'
 import { cx, IconButton, LangSwitch, ModalDialog, Spinner, copyText, popoverCls, useIndicator, useToast } from './ui/kit'
 import {
-  IconOverview, IconChart, IconServer, IconPlug, IconUsers, IconBell, IconSun, IconMoon, IconLogout, IconSearch, IconGlobe, IconKey, IconMenu, IconRefresh,
+  IconOverview, IconChart, IconServer, IconPlug, IconUsers, IconBell, IconSun, IconMoon, IconLogout, IconSearch, IconGlobe, IconKey, IconMenu, IconRefresh, IconFeedback, IconGithub,
 } from './ui/icons'
 import { Login } from './pages/Login'
 import { OverviewPage } from './pages/Overview'
@@ -28,6 +28,7 @@ import { preloadCharts } from './ui/charts'
 import { setLocal, useAppearance } from './lib/appearance'
 import { fullTime } from './lib/fmt'
 import { tr } from './i18n'
+import { REPO_URL, issueUrl } from './lib/url'
 import { KW, SH } from './i18n/shell'
 
 const IconGroup = (p: { size?: number }) => <svg width={p.size ?? 18} height={p.size ?? 18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><path d="M14 17.5h7M17.5 14v7" /></svg>
@@ -157,6 +158,7 @@ export function App() {
           <IconButton label={t.search} className="md:hidden" onPress={() => setPalette(true)}><IconSearch /></IconButton>
           <IconButton label={t.refresh} className="hidden sm:inline-flex" onPress={() => qc.invalidateQueries()}><IconRefresh /></IconButton>
           <span className="hidden text-[13px] text-subtle lg:inline">{me.data.username}</span>
+          <FeedbackButton />
           <LangSwitch />
           <IconButton label={dark ? t.toLight : t.toDark} onPress={toggle}>{dark ? <IconSun /> : <IconMoon />}</IconButton>
           <IconButton label={t.logout} onPress={logout}><IconLogout /></IconButton>
@@ -174,9 +176,12 @@ export function App() {
               </ul>
             </div>
           ))}
-          <button type="button" onClick={() => setHelp(true)} className="mt-auto cursor-pointer px-3 text-left text-[11px] leading-4 text-muted outline-none hover:text-subtle focus-visible:text-text">
-            <kbd className="rounded bg-overlay px-1">⌘K</kbd> {t.hintSearch} · <kbd className="rounded bg-overlay px-1">g</kbd>{t.hintJump} · <kbd className="rounded bg-overlay px-1">?</kbd> {t.hintKeys}
-          </button>
+          <div className="mt-auto flex flex-col gap-2">
+            <button type="button" onClick={() => setHelp(true)} className="cursor-pointer px-3 text-left text-[11px] leading-4 text-muted outline-none hover:text-subtle focus-visible:text-text">
+              <kbd className="rounded bg-overlay px-1">⌘K</kbd> {t.hintSearch} · <kbd className="rounded bg-overlay px-1">g</kbd>{t.hintJump} · <kbd className="rounded bg-overlay px-1">?</kbd> {t.hintKeys}
+            </button>
+            <PoweredBy />
+          </div>
         </nav>
         <main id="main" className="min-w-0 flex-1 px-4 pt-5 pb-24 lg:px-6 lg:pb-10">
           <div key={current.id} className="animate-page-in"><PageBoundary>{current.el()}</PageBoundary></div>
@@ -207,6 +212,7 @@ export function App() {
                 </a>
               ))}
             </div>
+            <div className="mt-3 border-t pt-3"><PoweredBy /></div>
           </Dialog>
         </Modal>
       </ModalOverlay>
@@ -226,6 +232,42 @@ function NavLink({ it, active, badge }: { it: NavItem; active: boolean; badge?: 
         {badge !== undefined && <span className="ml-auto rounded-full bg-warn/20 px-1.5 text-[11px] font-semibold text-warn">{badge}</span>}
       </a>
     </li>
+  )
+}
+
+const extLink = 'outline-none transition-colors duration-(--dur-1) focus-visible:ring-2 focus-visible:ring-accent'
+
+/** The running panel version, shared with the Updates page's query. */
+function usePanelVersion(): string | undefined {
+  const q = useQuery({ queryKey: ['update'], queryFn: () => api<UpdateState>('/update'), refetchInterval: 10 * 60_000, retry: false })
+  return q.data?.current || undefined
+}
+
+/** Header button: open a prefilled GitHub issue. */
+function FeedbackButton() {
+  const t = tr(SH)
+  const v = usePanelVersion()
+  return (
+    <a href={issueUrl(v)} target="_blank" rel="noopener noreferrer" title={t.feedbackTitle} aria-label={t.feedback}
+      className={cx('hidden h-8 shrink-0 items-center gap-1.5 rounded-full px-2 text-[13px] text-subtle hover:bg-overlay hover:text-text sm:inline-flex md:px-3', extLink)}>
+      <IconFeedback size={16} /><span className="hidden xl:inline">{t.feedback}</span>
+    </a>
+  )
+}
+
+/** Sidebar / More-sheet footer: "Powered by sbpanel vX" → source repo, plus the feedback link. */
+function PoweredBy() {
+  const t = tr(SH)
+  const v = usePanelVersion()
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 text-[11px] leading-4 text-muted">
+      <a href={REPO_URL} target="_blank" rel="noopener noreferrer" title={t.sourceRepo} className={cx('inline-flex items-center gap-1 rounded hover:text-text', extLink)}>
+        <IconGithub size={12} />{t.poweredBy} <span className="font-medium text-subtle">sbpanel</span>{v && <span className="font-mono">{v}</span>}
+      </a>
+      <a href={issueUrl(v)} target="_blank" rel="noopener noreferrer" title={t.feedbackTitle} className={cx('inline-flex items-center gap-1 rounded hover:text-text', extLink)}>
+        <IconFeedback size={12} />{t.feedback}
+      </a>
+    </div>
   )
 }
 

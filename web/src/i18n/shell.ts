@@ -25,6 +25,7 @@ export const SH = dict({
   scGo: (p: string) => `Go to ${p}`, scJK: 'User list: move up / down; detail drawer: previous / next', scEnter: 'Open user details',
   scX: 'Select the current user', scAll: 'Select all filtered results', scEsc: 'Clear selection / close dialog',
   pageError: 'Something went wrong on this page', retry: 'Retry',
+  feedback: 'Report an issue', feedbackTitle: 'Report a problem or suggest a feature on GitHub', poweredBy: 'Powered by', sourceRepo: 'Source code on GitHub',
   // login
   tagline: 'sing-box proxy panel', username: 'Username', password: 'Password', totp: 'Two-factor code', totpHint: 'The 6-digit code from your authenticator app',
   signingIn: 'Signing in…', signIn: 'Sign in', or: 'or', passkeySignIn: 'Sign in with a passkey',
@@ -50,6 +51,7 @@ export const SH = dict({
   scGo: (p) => `前往${p}`, scJK: '用户列表：上下移动；详情抽屉：上一个 / 下一个', scEnter: '打开用户详情',
   scX: '选中当前用户', scAll: '全选当前筛选结果', scEsc: '取消选择 / 关闭弹窗',
   pageError: '页面出错了', retry: '重试',
+  feedback: '问题反馈', feedbackTitle: '在 GitHub 上反馈问题或提建议', poweredBy: 'Powered by', sourceRepo: '在 GitHub 上查看源码',
   tagline: 'sing-box 代理管理面板', username: '用户名', password: '密码', totp: '两步验证码', totpHint: '验证器 App 中的 6 位数字',
   signingIn: '登录中…', signIn: '登录', or: '或', passkeySignIn: '使用通行密钥登录',
 })
